@@ -4,7 +4,7 @@
 
 `easy-oww` is a complete CLI tool that makes creating custom wake word models for [OpenWakeWord](https://github.com/dscripka/openWakeWord) as easy as possible. It guides you through the entire process from recording audio samples to training and testing a production-ready ONNX model.
 
-## ✨ Features
+## Features
 
 - 🎤 **Interactive Audio Recording** - Guided recording with real-time quality validation
 - 🤖 **Automatic TTS Generation** - Integrates Piper TTS for 500+ synthetic samples
@@ -15,7 +15,7 @@
 - 🔄 **Resume Capability** - Continue from last checkpoint if interrupted
 - 📊 **Rich Terminal UI** - Beautiful progress bars and status displays
 
-## 📚 Documentation
+## Documentation
 
 - **[Installation Guide](INSTALLATION.md)** - Detailed setup including external drive support
 - **[FAQ](FAQ.md)** - Frequently asked questions and troubleshooting
@@ -24,7 +24,7 @@
 - **[Training Pipeline](easy_oww/training/README.md)** - Training workflow details
 - **[Model Testing](easy_oww/testing/README.md)** - Testing and validation guide
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -82,7 +82,7 @@ easy-oww test hey_assistant
 
 That's it! You'll have a custom wake word model ready to deploy.
 
-## 📋 Requirements
+## Requirements
 
 ### System Requirements
 
@@ -105,7 +105,7 @@ That's it! You'll have a custom wake word model ready to deploy.
 **Optional (+30GB):**
 - FSD50K dataset: 30GB (background sounds)
 
-**💡 Limited Space? Use a USB-C Drive!**
+**Limited Space? Use a USB-C Drive!**
 
 You can run easy-oww entirely from an external drive (USB-C SSD recommended). See [INSTALLATION.md](INSTALLATION.md#external-storage-setup) for setup instructions.
 
@@ -114,7 +114,7 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 - Better: Samsung T7 Portable SSD (500GB+)
 - Best: Samsung T7 Shield SSD (1TB)
 
-## 🎯 How It Works
+## How It Works
 
 `easy-oww` automates the complete OpenWakeWord training workflow:
 
@@ -171,7 +171,7 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 - Confusion matrix and F1 scores
 - Results saved to JSON
 
-## 📚 CLI Commands
+## CLI Commands
 
 ### Workspace Management
 
@@ -258,7 +258,7 @@ easy-oww test my_wake_word
 easy-oww test my_wake_word --duration 120
 ```
 
-## 💾 External Storage Support
+## External Storage Support
 
 **Yes! You can run easy-oww from a USB-C thumb drive or external SSD.**
 
@@ -294,7 +294,7 @@ easy-oww train my_project
 
 See [INSTALLATION.md](INSTALLATION.md#external-storage-setup) for detailed setup, formatting tips, and optimization guide.
 
-## 📁 Project Structure
+## Project Structure
 
 After running through the workflow, your project will look like:
 
@@ -324,7 +324,7 @@ After running through the workflow, your project will look like:
         └── test_results.json    # Testing metrics
 ```
 
-## 🎓 Training Best Practices
+## Training Best Practices
 
 ### Recording Tips
 
@@ -367,7 +367,7 @@ Augmentation makes models robust to real-world conditions:
 - **Noise Probability**: 0.5 (handle background noise)
 - **Pitch/Time Variations**: 0.3 (voice diversity)
 
-## 📊 Performance Metrics
+## Performance Metrics
 
 ### Training Time Estimates
 
@@ -391,7 +391,7 @@ With proper training:
 
 Higher quality recordings and more samples improve results.
 
-## 🔧 Advanced Configuration
+## Advanced Configuration
 
 ### Custom Training Config
 
@@ -440,7 +440,7 @@ easy-oww test my_wake_word
 > Enter threshold: 0.4
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Installation Issues
 
@@ -480,7 +480,7 @@ pip install --user -e .
 - Verify microphone is working
 - Test with the wake word you trained on
 
-## 📖 Complete Documentation
+## Complete Documentation
 
 ### Getting Started
 - **[Installation Guide](INSTALLATION.md)** - Complete setup instructions
@@ -522,7 +522,7 @@ pip install --user -e .
   - Metrics explanation
   - Threshold tuning guide
 
-## 🧪 Testing
+## Testing
 
 Run the test suite:
 
@@ -540,7 +540,7 @@ pytest --cov=easy_oww
 pytest tests/test_audio.py -v
 ```
 
-## 💡 Common Use Cases
+## Common Use Cases
 
 ### Home Automation
 ```bash
@@ -592,7 +592,7 @@ easy-oww create wake_word_3 --wake-word "play music"
 # Load all models in your application
 ```
 
-## 🎓 Tips and Tricks
+## Tips and Tricks
 
 ### Faster Training
 ```bash
@@ -644,7 +644,7 @@ easy-oww create my_project
 easy-oww train my_project
 ```
 
-## 🗺️ Roadmap
+## Roadmap
 
 **Current Version: 0.1.0** - Full feature set complete!
 
@@ -667,7 +667,7 @@ easy-oww train my_project
 - [ ] Automatic threshold optimization
 - [ ] Model versioning and comparison tools
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Please:
 
@@ -677,11 +677,11 @@ Contributions welcome! Please:
 4. Ensure all tests pass
 5. Submit a pull request
 
-## 📝 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [OpenWakeWord](https://github.com/dscripka/openWakeWord) - Wake word detection framework
 - [Piper TTS](https://github.com/rhasspy/piper) - Text-to-speech synthesis
@@ -689,11 +689,11 @@ MIT License - see [LICENSE](LICENSE) file for details
 - [MIT RIR Dataset](https://mcdermottlab.mit.edu/Reverb/IR_Survey.html) - Room impulse responses
 - [FSD50K](https://zenodo.org/record/4060432) - Sound event dataset
 
-## 📧 Support
+## Support
 
 - Issues: [GitHub Issues](https://github.com/yourusername/easy-oww/issues)
 - Discussions: [GitHub Discussions](https://github.com/yourusername/easy-oww/discussions)
 
 ---
 
-Made with ❤️ for the OpenWakeWord community
+Made for the OpenWakeWord community
