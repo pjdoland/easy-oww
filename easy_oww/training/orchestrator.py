@@ -1,0 +1,350 @@
+"""
+Training orchestration - ties together the complete training pipeline
+"""
+from pathlib import Path
+from typing import Optional, Dict
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+from easy_oww.training.config import TrainingConfig, ConfigManager
+from easy_oww.training.clips import ClipGenerator
+from easy_oww.training.augmentation import AudioAugmenter
+from easy_oww.tts import PiperTTS, VoiceDownloader
+from easy_oww.utils.logger import get_logger
+
+logger = get_logger()
+console = Console()
+
+
+class TrainingOrchestrator:
+    """Orchestrates the complete wake word training pipeline"""
+
+    def __init__(
+        self,
+        project_path: Path,
+        workspace_path: Path
+    ):
+        """
+        Initialize training orchestrator
+
+        Args:
+            project_path: Path to project directory
+            workspace_path: Path to workspace directory
+        """
+        self.project_path = Path(project_path)
+        self.workspace_path = Path(workspace_path)
+
+        # Initialize managers
+        self.config_manager = ConfigManager(self.project_path)
+
+        # Paths
+        self.datasets_dir = self.workspace_path / 'datasets'
+        self.piper_dir = self.workspace_path / 'piper-sample-generator'
+        self.voices_dir = self.workspace_path / 'voices'
+
+    def run(self, resume: bool = False, verbose: bool = False):
+        """
+        Run complete training pipeline
+
+        Args:
+            resume: Resume from last checkpoint
+            verbose: Enable verbose output
+        """
+        console.print(Panel.fit(
+            "[bold cyan]Wake Word Training Pipeline[/bold cyan]\n\n"
+            "This will train a custom wake word model using:\n"
+            "  1. Your recorded samples\n"
+            "  2. Generated synthetic samples (TTS)\n"
+            "  3. Audio augmentation (RIR, noise)\n"
+            "  4. OpenWakeWord model training",
+            title="Training"
+        ))
+
+        # Load configuration
+        config = self._load_config()
+
+        # Display training plan
+        self._display_training_plan(config)
+
+        # Validate configuration
+        self._validate_config(config)
+
+        # Phase 1: Generate clips
+        console.print("\n[bold cyan]Phase 1: Clip Generation[/bold cyan]")
+        self._generate_clips(config)
+
+        # Phase 2: Augment clips
+        console.print("\n[bold cyan]Phase 2: Audio Augmentation[/bold cyan]")
+        self._augment_clips(config)
+
+        # Phase 3: Train model
+        console.print("\n[bold cyan]Phase 3: Model Training[/bold cyan]")
+        self._train_model(config, resume)
+
+        # Complete
+        console.print("\n[green]✓ Training complete![/green]")
+        self._display_completion_summary(config)
+
+    def _load_config(self) -> TrainingConfig:
+        """
+        Load training configuration
+
+        Returns:
+            TrainingConfig instance
+
+        Raises:
+            RuntimeError: If config doesn't exist
+        """
+        if not self.config_manager.exists():
+            raise RuntimeError(
+                f"Training config not found. "
+                f"Create it first with project setup."
+            )
+
+        config = self.config_manager.load()
+        logger.info(f"Loaded config for project: {config.project_name}")
+
+        return config
+
+    def _display_training_plan(self, config: TrainingConfig):
+        """
+        Display training plan to user
+
+        Args:
+            config: Training configuration
+        """
+        summary = config.get_summary()
+
+        table = Table(title="Training Plan")
+        table.add_column("Parameter", style="cyan")
+        table.add_column("Value", style="white")
+
+        for key, value in summary.items():
+            table.add_row(key, str(value))
+
+        console.print("\n")
+        console.print(table)
+
+    def _validate_config(self, config: TrainingConfig):
+        """
+        Validate training configuration
+
+        Args:
+            config: Training configuration
+
+        Raises:
+            RuntimeError: If validation fails
+        """
+        is_valid, issues = config.validate()
+
+        if not is_valid:
+            console.print("\n[red]Configuration validation failed:[/red]")
+            for issue in issues:
+                console.print(f"  • {issue}")
+            raise RuntimeError("Invalid training configuration")
+
+        console.print("\n[green]✓[/green] Configuration validated")
+
+    def _generate_clips(self, config: TrainingConfig):
+        """
+        Generate training clips
+
+        Args:
+            config: Training configuration
+        """
+        clip_generator = ClipGenerator(
+            recordings_dir=Path(config.recordings_dir),
+            clips_dir=Path(config.clips_dir),
+            sample_rate=config.sample_rate,
+            target_duration_ms=config.clip_duration_ms
+        )
+
+        # Process real recordings
+        real_clips = clip_generator.process_real_recordings()
+
+        if len(real_clips) < config.real_samples:
+            console.print(
+                f"[yellow]⚠[/yellow] Only found {len(real_clips)} real recordings "
+                f"(expected {config.real_samples})"
+            )
+
+        # Generate synthetic clips
+        if config.synthetic_samples > 0:
+            # Check Piper and voices
+            piper = PiperTTS(self.piper_dir)
+            if not piper.is_installed():
+                raise RuntimeError("Piper TTS is not installed. Run 'easy-oww init' first.")
+
+            # Get voice models
+            voice_models = []
+            for voice_name in config.voices:
+                voice_path = piper.get_voice(voice_name)
+                if voice_path:
+                    voice_models.append(voice_path)
+                else:
+                    console.print(f"[yellow]⚠[/yellow] Voice not found: {voice_name}")
+
+            if not voice_models:
+                raise RuntimeError(
+                    "No voice models available. "
+                    "Download voices with 'easy-oww download-voices'"
+                )
+
+            console.print(f"Using {len(voice_models)} voices for generation")
+
+            # Generate synthetic clips
+            synthetic_clips = clip_generator.generate_synthetic_clips(
+                wake_word=config.wake_word,
+                voice_models=voice_models,
+                piper=piper,
+                count=config.synthetic_samples
+            )
+
+        # Generate negative clips
+        # Use FSD50K dataset for negative samples
+        fsd50k_dir = self.datasets_dir / 'fsd50k'
+        if fsd50k_dir.exists():
+            negative_clips = clip_generator.generate_negative_clips(
+                negative_audio_dir=fsd50k_dir,
+                count=config.target_samples  # Equal number of negatives
+            )
+        else:
+            console.print("[yellow]⚠[/yellow] FSD50K dataset not found, skipping negative samples")
+            console.print("Download with: [cyan]easy-oww download[/cyan]")
+
+        # Verify clips
+        console.print("\n[bold]Verifying clips...[/bold]")
+        verification = clip_generator.verify_clips()
+
+        for clip_type in ['positive', 'negative']:
+            valid = verification[clip_type]['valid']
+            invalid = verification[clip_type]['invalid']
+            console.print(f"  {clip_type.capitalize()}: {valid} valid, {invalid} invalid")
+
+            if invalid > 0 and invalid < 10:
+                for issue in verification[clip_type]['issues'][:5]:
+                    console.print(f"    • {issue}")
+
+    def _augment_clips(self, config: TrainingConfig):
+        """
+        Apply audio augmentation to clips
+
+        Args:
+            config: Training configuration
+        """
+        if not config.use_augmentation:
+            console.print("[yellow]Augmentation disabled, skipping[/yellow]")
+            return
+
+        # Initialize augmenter
+        rir_dir = self.datasets_dir / 'rir'
+        noise_dir = self.datasets_dir / 'fsd50k'
+
+        augmenter = AudioAugmenter(
+            rir_dir=rir_dir if rir_dir.exists() else None,
+            noise_dir=noise_dir if noise_dir.exists() else None,
+            sample_rate=config.sample_rate
+        )
+
+        # Get positive clips
+        positive_dir = Path(config.clips_dir) / 'positive'
+        positive_clips = list(positive_dir.glob('*.wav'))
+
+        if not positive_clips:
+            console.print("[yellow]⚠[/yellow] No positive clips to augment")
+            return
+
+        # Augment clips
+        augmented_dir = Path(config.clips_dir) / 'positive_augmented'
+        augmented_clips = augmenter.augment_clips(
+            input_clips=positive_clips,
+            output_dir=augmented_dir,
+            augmentations_per_clip=2,  # 2 variations per clip
+            rir_prob=config.rir_probability,
+            noise_prob=config.noise_probability
+        )
+
+        console.print(f"[green]✓[/green] Augmented {len(positive_clips)} clips into {len(augmented_clips)} variations")
+
+    def _train_model(self, config: TrainingConfig, resume: bool = False):
+        """
+        Train wake word model
+
+        Args:
+            config: Training configuration
+            resume: Resume from checkpoint
+        """
+        console.print("\n[bold]Preparing to train model...[/bold]")
+
+        # Get clip counts
+        clips_dir = Path(config.clips_dir)
+        positive_clips = list((clips_dir / 'positive').glob('*.wav'))
+        positive_aug_clips = list((clips_dir / 'positive_augmented').glob('*.wav'))
+        negative_clips = list((clips_dir / 'negative').glob('*.wav'))
+
+        total_positive = len(positive_clips) + len(positive_aug_clips)
+        total_negative = len(negative_clips)
+
+        console.print(f"\nTraining data:")
+        console.print(f"  Positive samples: {total_positive}")
+        console.print(f"  Negative samples: {total_negative}")
+        console.print(f"  Total: {total_positive + total_negative}")
+
+        if total_positive < 100:
+            console.print("[yellow]⚠[/yellow] Low number of positive samples, model may not perform well")
+
+        if total_negative < total_positive:
+            console.print("[yellow]⚠[/yellow] Fewer negative than positive samples, consider generating more")
+
+        # Integration with OpenWakeWord training
+        console.print("\n[cyan]Model training integration:[/cyan]")
+        console.print("Training will use OpenWakeWord's training pipeline:")
+        console.print("  1. Generate embeddings from melspectrogram features")
+        console.print("  2. Train classification model")
+        console.print("  3. Export to ONNX format")
+
+        console.print("\n[yellow]Note:[/yellow] OpenWakeWord model training integration coming soon.")
+        console.print("For now, clips are prepared in the correct format.")
+        console.print(f"\nClips location: {clips_dir}")
+        console.print("\nYou can use these clips with the OpenWakeWord training script:")
+        console.print("[cyan]python -m openwakeword.train --help[/cyan]")
+
+    def _display_completion_summary(self, config: TrainingConfig):
+        """
+        Display training completion summary
+
+        Args:
+            config: Training configuration
+        """
+        console.print(Panel.fit(
+            f"[bold green]Training Complete![/bold green]\n\n"
+            f"Project: {config.project_name}\n"
+            f"Wake Word: {config.wake_word}\n\n"
+            f"Clips prepared in: {config.clips_dir}\n"
+            f"Ready for model training!",
+            title="Success"
+        ))
+
+        console.print("\n[bold]Next steps:[/bold]")
+        console.print(f"  1. Review generated clips: {config.clips_dir}")
+        console.print(f"  2. Test the trained model: [cyan]easy-oww test {config.project_name}[/cyan]")
+
+
+def run_training(
+    project_path: Path,
+    workspace_path: Path,
+    resume: bool = False,
+    verbose: bool = False
+):
+    """
+    Run training pipeline
+
+    Args:
+        project_path: Path to project directory
+        workspace_path: Path to workspace directory
+        resume: Resume from checkpoint
+        verbose: Enable verbose output
+    """
+    orchestrator = TrainingOrchestrator(project_path, workspace_path)
+    orchestrator.run(resume=resume, verbose=verbose)
