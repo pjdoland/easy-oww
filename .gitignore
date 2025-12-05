@@ -145,11 +145,12 @@ cython_debug/
 
 # easy-oww specific files
 # Workspace data (large datasets and user projects)
+# Note: These patterns ignore workspace directories but not source code modules
 .easy-oww/
-datasets/
-projects/
-voices/
-piper-sample-generator/
+/datasets/
+/projects/
+/voices/
+/piper-sample-generator/
 .cache/
 .logs/
 
