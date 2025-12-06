@@ -91,30 +91,46 @@ cd easy-oww
 ls -la
 ```
 
-### 3. Install Dependencies
+### 3. Set Up Virtual Environment and Install
 
-**Method 1: Development Install (Recommended)**
+**Method 1: Automatic Setup with Script (Recommended)**
 ```bash
-# Install in development mode
-pip install -e .
+# Run the setup script
+./setup.sh
 
-# This allows you to:
-# - Modify code and see changes immediately
-# - Run from any directory
-# - Use the 'easy-oww' command globally
+# This will:
+# - Check Python version
+# - Create virtual environment
+# - Install all dependencies
+# - Verify installation
 ```
 
-**Method 2: Regular Install**
+**Method 2: Manual Setup**
 ```bash
-# Install as regular package
-pip install .
+# Create virtual environment
+python3 -m venv venv
 
-# Use this if you won't be modifying code
+# Activate virtual environment
+# On macOS/Linux:
+source venv/bin/activate
+
+# On Windows:
+venv\Scripts\activate
+
+# Upgrade pip
+pip install --upgrade pip
+
+# Install easy-oww in development mode
+pip install -e .
 ```
 
 **Method 3: Install from requirements.txt**
 ```bash
-# Install just dependencies
+# Create and activate virtual environment first
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 
 # Then run directly with:
@@ -124,6 +140,9 @@ python -m easy_oww.cli.main
 ### 4. Verify Installation
 
 ```bash
+# Make sure virtual environment is activated
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
 # Check that command is available
 easy-oww --version
 
@@ -131,6 +150,12 @@ easy-oww --version
 
 # Check help
 easy-oww --help
+```
+
+**Important:** Always activate the virtual environment before using easy-oww:
+```bash
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate     # Windows
 ```
 
 ## External Storage Setup
@@ -538,11 +563,28 @@ cd -
 rm -rf /tmp/easy-oww-test
 ```
 
-## Virtual Environment Setup (Recommended)
+## Virtual Environment Setup
 
-Using a virtual environment keeps dependencies isolated:
+**Virtual environments are now the default installation method.** The setup script creates one automatically, or you can create it manually.
 
-### Create Virtual Environment
+### Why Virtual Environments?
+
+- **Isolation**: Dependencies don't conflict with other Python projects
+- **Cleanliness**: Doesn't modify system Python installation
+- **Reproducibility**: Easy to recreate exact environment
+- **Safety**: Required on many systems (macOS with Homebrew Python)
+
+### Automatic Setup
+
+The easiest way is to use the setup script:
+
+```bash
+./setup.sh
+```
+
+### Manual Setup
+
+If you prefer manual control:
 
 ```bash
 # Navigate to project directory
@@ -559,12 +601,8 @@ source venv/bin/activate
 venv\Scripts\activate
 
 # Your prompt should change to show (venv)
-```
 
-### Install in Virtual Environment
-
-```bash
-# With venv activated
+# Install easy-oww
 pip install --upgrade pip
 pip install -e .
 
@@ -572,18 +610,22 @@ pip install -e .
 easy-oww --version
 ```
 
-### Using the Virtual Environment
+### Daily Usage
 
+**Always activate before using:**
 ```bash
-# Always activate before using
+# Navigate to project directory
+cd /path/to/easy-oww
+
+# Activate virtual environment
 source venv/bin/activate  # macOS/Linux
 venv\Scripts\activate     # Windows
 
-# Use easy-oww normally
+# Now you can use easy-oww
 easy-oww init
 easy-oww download
 
-# Deactivate when done
+# Deactivate when done (optional)
 deactivate
 ```
 
@@ -591,10 +633,24 @@ deactivate
 
 **Add to ~/.bashrc or ~/.zshrc:**
 ```bash
-alias easy-oww-activate='source ~/path/to/easy-oww/venv/bin/activate'
+# Create an alias for easy activation
+alias easy-oww-env='cd ~/path/to/easy-oww && source venv/bin/activate'
 
 # Then just run:
-easy-oww-activate
+easy-oww-env
+```
+
+**Or use direnv for automatic activation:**
+```bash
+# Install direnv: https://direnv.net/
+
+# In easy-oww directory, create .envrc:
+echo "source venv/bin/activate" > .envrc
+
+# Allow it:
+direnv allow
+
+# Now venv activates automatically when you cd into the directory
 ```
 
 ## Troubleshooting

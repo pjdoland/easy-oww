@@ -28,22 +28,42 @@
 
 ### Installation
 
-**Standard Installation:**
+**Automatic Setup (Recommended):**
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/easy-oww.git
 cd easy-oww
 
+# Run the setup script
+./setup.sh
+```
+
+The setup script will:
+- Check Python version (3.7+ required)
+- Create a virtual environment
+- Install all dependencies
+- Verify installation
+
+**Manual Installation:**
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/easy-oww.git
+cd easy-oww
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
 # Install dependencies
 pip install -e .
 ```
 
-**External Drive Installation (Recommended for limited space):**
+**External Drive Setup (for limited space):**
+
+After installation, initialize your workspace on an external drive:
 ```bash
-# Clone the repository to internal drive
-git clone https://github.com/yourusername/easy-oww.git
-cd easy-oww
-pip install -e .
+# Activate virtual environment
+source venv/bin/activate
 
 # Initialize workspace on external drive
 easy-oww init --workspace /Volumes/MyUSB/easy-oww
@@ -58,6 +78,9 @@ See [INSTALLATION.md](INSTALLATION.md) for detailed setup instructions, includin
 ### Create Your First Wake Word Model
 
 ```bash
+# Activate the virtual environment (if not already active)
+source venv/bin/activate
+
 # 1. Initialize workspace (one-time setup)
 easy-oww init
 
@@ -81,6 +104,11 @@ easy-oww test hey_assistant
 ```
 
 That's it! You'll have a custom wake word model ready to deploy.
+
+**Note:** Always activate the virtual environment before using easy-oww:
+```bash
+source venv/bin/activate
+```
 
 ## Requirements
 
@@ -527,8 +555,11 @@ pip install --user -e .
 Run the test suite:
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+# Activate virtual environment
+source venv/bin/activate
+
+# Install dev dependencies (if not already installed)
+pip install pytest pytest-mock
 
 # Run all tests
 pytest

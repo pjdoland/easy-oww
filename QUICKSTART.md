@@ -16,10 +16,29 @@ Before starting, ensure you have:
 
 ### 1. Install easy-oww (5 minutes)
 
+**Option A: Automatic Setup (Recommended)**
 ```bash
 # Clone repository
 git clone https://github.com/yourusername/easy-oww.git
 cd easy-oww
+
+# Run setup script
+./setup.sh
+
+# The script will create a virtual environment and install everything
+```
+
+**Option B: Manual Setup**
+```bash
+# Clone repository
+git clone https://github.com/yourusername/easy-oww.git
+cd easy-oww
+
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install
 pip install -e .
@@ -30,10 +49,19 @@ easy-oww --version
 ```
 
 **Troubleshooting:**
-- If `easy-oww` command not found: Try `python -m easy_oww.cli.main --version`
-- If permission errors: Use `pip install --user -e .`
+- If `easy-oww` command not found: Make sure venv is activated, or try `python -m easy_oww.cli.main --version`
+- If permission errors on macOS: Use the virtual environment method (venv)
 
 ### 2. Set Up Workspace (2 minutes)
+
+**First, activate the virtual environment:**
+```bash
+# Navigate to easy-oww directory
+cd easy-oww
+
+# Activate virtual environment
+source venv/bin/activate  # Windows: venv\Scripts\activate
+```
 
 **Option A: Internal Storage**
 ```bash
@@ -54,6 +82,11 @@ source ~/.bashrc
 
 # For Linux, use /mnt/MyDrive/easy-oww
 # For Windows, use E:\easy-oww
+```
+
+**Note:** Remember to activate the virtual environment every time you open a new terminal:
+```bash
+source venv/bin/activate  # Windows: venv\Scripts\activate
 ```
 
 **What happens:**
@@ -384,6 +417,10 @@ easy-oww train my_wake_word --verbose
 ## Summary Commands
 
 ```bash
+# Activate virtual environment (always do this first!)
+cd /path/to/easy-oww
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
 # Complete workflow (after installation and downloads)
 easy-oww create my_wake_word --wake-word "hey assistant"
 easy-oww record my_wake_word --count 20
@@ -401,6 +438,12 @@ easy-oww test my_wake_word
 **Total time:** ~45 minutes (excluding initial setup and downloads)
 
 **Result:** Production-ready ONNX wake word model!
+
+**Important:** Always activate the virtual environment first:
+```bash
+cd /path/to/easy-oww
+source venv/bin/activate
+```
 
 ---
 
