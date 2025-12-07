@@ -308,7 +308,7 @@ def record_samples(project_name, workspace_path=None, count=20, duration=1.5, ve
             traceback.print_exc()
 
 
-def train_model(project_name, workspace_path=None, resume=False, verbose=False):
+def train_model(project_name, workspace_path=None, resume=False, verbose=False, force=False):
     """
     Train wake word model
 
@@ -317,6 +317,7 @@ def train_model(project_name, workspace_path=None, resume=False, verbose=False):
         workspace_path: Custom workspace path
         resume: Resume from last checkpoint
         verbose: Enable verbose output
+        force: Force full retrain (regenerate all clips and features)
     """
     from easy_oww.training import run_training
 
@@ -335,7 +336,8 @@ def train_model(project_name, workspace_path=None, resume=False, verbose=False):
             project_path=project_path,
             workspace_path=paths.workspace,
             resume=resume,
-            verbose=verbose
+            verbose=verbose,
+            force=force
         )
     except KeyboardInterrupt:
         console.print("\n[yellow]Training interrupted[/yellow]")

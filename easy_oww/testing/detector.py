@@ -27,7 +27,8 @@ class ModelDetector:
         model_path: Optional[Path] = None,
         sample_rate: int = 16000,
         chunk_duration_ms: int = 100,
-        detection_threshold: float = 0.5
+        detection_threshold: float = 0.5,
+        debounce_time: float = 2.0
     ):
         """
         Initialize model detector
@@ -37,11 +38,13 @@ class ModelDetector:
             sample_rate: Audio sample rate
             chunk_duration_ms: Audio chunk duration in milliseconds
             detection_threshold: Detection confidence threshold (0-1)
+            debounce_time: Minimum time (seconds) between detections to count as separate (default: 2.0)
         """
         self.model_path = Path(model_path) if model_path else None
         self.sample_rate = sample_rate
         self.chunk_duration_ms = chunk_duration_ms
         self.detection_threshold = detection_threshold
+        self.debounce_time = debounce_time
 
         # Audio buffer settings
         self.chunk_samples = int((chunk_duration_ms / 1000.0) * sample_rate)
@@ -61,6 +64,7 @@ class ModelDetector:
         # Detection state
         self.is_running = False
         self.detections = []
+        self.last_detection_time = 0.0  # For debouncing
 
     def load_model(self):
         """
@@ -100,7 +104,7 @@ class ModelDetector:
         Run model prediction on audio
 
         Args:
-            audio: Audio data
+            audio: Audio data (int16)
 
         Returns:
             Detection confidence score (0-1)
@@ -111,17 +115,19 @@ class ModelDetector:
         try:
             if self.model_type == 'openwakeword':
                 # OpenWakeWord model
-                # Convert to float32 and normalize
-                audio_float = audio.astype(np.float32) / 32768.0
+                # Use predict_clip for discrete audio clips instead of predict
+                # predict_clip processes audio in chunks and returns frame-level predictions
+                predictions = self.model.predict_clip(audio, padding=1, chunk_size=1280)
 
-                # Get prediction
-                prediction = self.model.predict(audio_float)
+                # Extract scores from all frames
+                model_name = list(self.model.models.keys())[0]
+                scores = [pred[model_name] for pred in predictions if model_name in pred]
 
-                # Extract score (first model in list)
-                model_name = list(prediction.keys())[0]
-                score = prediction[model_name]
-
-                return float(score)
+                # Return maximum score across all frames
+                if scores:
+                    return float(max(scores))
+                else:
+                    return 0.0
 
             else:
                 # Basic ONNX model
@@ -167,12 +173,17 @@ class ModelDetector:
 
         # Check for detection
         if score >= self.detection_threshold:
-            detection = {
-                'timestamp': time.time(),
-                'score': score,
-                'audio': audio_window.copy()
-            }
-            return detection
+            current_time = time.time()
+
+            # Debouncing: only count as new detection if enough time has passed
+            if current_time - self.last_detection_time >= self.debounce_time:
+                self.last_detection_time = current_time
+                detection = {
+                    'timestamp': current_time,
+                    'score': score,
+                    'audio': audio_window.copy()
+                }
+                return detection
 
         return None
 
@@ -289,6 +300,11 @@ class ModelDetector:
         # Convert to mono if needed
         if len(audio.shape) > 1:
             audio = audio.mean(axis=1).astype(np.int16)
+
+        # Pad audio to 2 seconds if needed (OpenWakeWord expects 32000 samples for proper feature extraction)
+        min_samples = 32000  # 2 seconds at 16kHz
+        if len(audio) < min_samples:
+            audio = np.pad(audio, (0, min_samples - len(audio)), mode='constant')
 
         # Get prediction
         score = self.predict(audio)

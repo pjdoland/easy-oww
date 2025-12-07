@@ -43,13 +43,14 @@ class TrainingOrchestrator:
         self.piper_dir = self.workspace_path / 'piper-sample-generator'
         self.voices_dir = self.workspace_path / 'voices'
 
-    def run(self, resume: bool = False, verbose: bool = False):
+    def run(self, resume: bool = False, verbose: bool = False, force: bool = False):
         """
         Run complete training pipeline
 
         Args:
             resume: Resume from last checkpoint
             verbose: Enable verbose output
+            force: Force full retrain (regenerate all clips and features)
         """
         console.print(Panel.fit(
             "[bold cyan]Wake Word Training Pipeline[/bold cyan]\n\n"
@@ -72,15 +73,15 @@ class TrainingOrchestrator:
 
         # Phase 1: Generate clips
         console.print("\n[bold cyan]Phase 1: Clip Generation[/bold cyan]")
-        self._generate_clips(config)
+        self._generate_clips(config, force)
 
         # Phase 2: Augment clips
         console.print("\n[bold cyan]Phase 2: Audio Augmentation[/bold cyan]")
-        self._augment_clips(config)
+        self._augment_clips(config, force)
 
         # Phase 3: Train model
         console.print("\n[bold cyan]Phase 3: Model Training[/bold cyan]")
-        self._train_model(config, resume)
+        self._train_model(config, resume, force)
 
         # Complete
         console.print("\n[green]✓ Training complete![/green]")
@@ -146,13 +147,58 @@ class TrainingOrchestrator:
 
         console.print("\n[green]✓[/green] Configuration validated")
 
-    def _generate_clips(self, config: TrainingConfig):
+    def _clips_exist(self, config: TrainingConfig) -> bool:
+        """Check if clips have already been generated"""
+        clips_dir = Path(config.clips_dir)
+        positive_dir = clips_dir / 'positive'
+        negative_dir = clips_dir / 'negative'
+
+        if not positive_dir.exists() or not negative_dir.exists():
+            return False
+
+        positive_count = len(list(positive_dir.glob('*.wav')))
+        negative_count = len(list(negative_dir.glob('*.wav')))
+
+        # Require at least some clips to be present
+        return positive_count > 0 and negative_count > 0
+
+    def _augmented_clips_exist(self, config: TrainingConfig) -> bool:
+        """Check if augmented clips have already been generated"""
+        if not config.use_augmentation:
+            return True  # Skip check if augmentation is disabled
+
+        clips_dir = Path(config.clips_dir)
+        augmented_dir = clips_dir / 'positive_augmented'
+
+        if not augmented_dir.exists():
+            return False
+
+        augmented_count = len(list(augmented_dir.glob('*.wav')))
+        return augmented_count > 0
+
+    def _generate_clips(self, config: TrainingConfig, force: bool = False):
         """
         Generate training clips
 
         Args:
             config: Training configuration
+            force: Force regeneration even if clips exist
         """
+        # Check if clips already exist
+        if not force and self._clips_exist(config):
+            console.print("[green]✓[/green] Clips already generated, skipping...")
+
+            # Show counts
+            clips_dir = Path(config.clips_dir)
+            positive_count = len(list((clips_dir / 'positive').glob('*.wav')))
+            negative_count = len(list((clips_dir / 'negative').glob('*.wav')))
+            console.print(f"  Positive clips: {positive_count}")
+            console.print(f"  Negative clips: {negative_count}")
+            return
+
+        if force:
+            console.print("[yellow]⚠[/yellow] Force flag set - regenerating all clips...")
+
         clip_generator = ClipGenerator(
             recordings_dir=Path(config.recordings_dir),
             clips_dir=Path(config.clips_dir),
@@ -227,16 +273,28 @@ class TrainingOrchestrator:
                 for issue in verification[clip_type]['issues'][:5]:
                     console.print(f"    • {issue}")
 
-    def _augment_clips(self, config: TrainingConfig):
+    def _augment_clips(self, config: TrainingConfig, force: bool = False):
         """
         Apply audio augmentation to clips
 
         Args:
             config: Training configuration
+            force: Force regeneration even if augmented clips exist
         """
         if not config.use_augmentation:
             console.print("[yellow]Augmentation disabled, skipping[/yellow]")
             return
+
+        # Check if augmented clips already exist
+        if not force and self._augmented_clips_exist(config):
+            console.print("[green]✓[/green] Augmented clips already generated, skipping...")
+            clips_dir = Path(config.clips_dir)
+            augmented_count = len(list((clips_dir / 'positive_augmented').glob('*.wav')))
+            console.print(f"  Augmented clips: {augmented_count}")
+            return
+
+        if force:
+            console.print("[yellow]⚠[/yellow] Force flag set - regenerating augmented clips...")
 
         # Initialize augmenter
         rir_dir = self.datasets_dir / 'rir'
@@ -268,31 +326,31 @@ class TrainingOrchestrator:
 
         console.print(f"[green]✓[/green] Augmented {len(positive_clips)} clips into {len(augmented_clips)} variations")
 
-    def _train_model(self, config: TrainingConfig, resume: bool = False):
+    def _train_model(self, config: TrainingConfig, resume: bool = False, force: bool = False):
         """
         Train wake word model
 
         Args:
             config: Training configuration
             resume: Resume from checkpoint
+            force: Force full retrain (regenerate features)
         """
-        from openwakeword import train_custom_verifier
-        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from easy_oww.training.full_trainer import train_full_model
 
         console.print("\n[bold]Phase 3: Model Training[/bold]")
 
-        # Get clip directories
+        # Get clip and output directories
         clips_dir = Path(config.clips_dir)
+        models_dir = Path(config.models_dir)
+        models_dir.mkdir(parents=True, exist_ok=True)
+
+        # Count available clips
         positive_dir = clips_dir / 'positive'
         positive_aug_dir = clips_dir / 'positive_augmented'
         negative_dir = clips_dir / 'negative'
 
-        # Combine positive clips
-        all_positive_clips = list(positive_dir.glob('*.wav')) + list(positive_aug_dir.glob('*.wav'))
-        negative_clips = list(negative_dir.glob('*.wav'))
-
-        total_positive = len(all_positive_clips)
-        total_negative = len(negative_clips)
+        total_positive = len(list(positive_dir.glob('*.wav'))) + len(list(positive_aug_dir.glob('*.wav')))
+        total_negative = len(list(negative_dir.glob('*.wav')))
 
         console.print(f"\nTraining data:")
         console.print(f"  Positive samples: {total_positive}")
@@ -305,58 +363,35 @@ class TrainingOrchestrator:
 
         if total_negative < total_positive:
             console.print("[yellow]⚠[/yellow] Fewer negative than positive samples")
-            console.print("    Model may have high false positive rate")
+            console.print("    Model will generate adversarial negatives to compensate")
 
-        # Prepare combined positive directory for training
-        # OpenWakeWord's train_custom_verifier expects all positives in one directory
-        combined_positive_dir = clips_dir / 'positive_combined'
-        combined_positive_dir.mkdir(exist_ok=True)
+        # Train full model
+        try:
+            model_path = train_full_model(
+                project_name=config.project_name,
+                wake_word=config.wake_word,
+                clips_dir=clips_dir,
+                output_dir=models_dir,
+                workspace_dir=self.workspace_path,
+                model_type="dnn",
+                layer_size=128,
+                steps=5000,
+                target_fp_per_hour=1.0,  # More aggressive - reduce false positives
+                augmentation_rounds=2,
+                batch_size=128,
+                max_negative_weight=10,  # Balance: not too high (collapse) or too low (false positives)
+                force=force
+            )
 
-        console.print(f"\nPreparing training data...")
-        import shutil
-        for clip in all_positive_clips:
-            dest = combined_positive_dir / clip.name
-            if not dest.exists():
-                shutil.copy2(clip, dest)
+            console.print(f"\n[green]✓[/green] Model saved to: {model_path}")
 
-        # Output model path
-        models_dir = Path(config.models_dir)
-        models_dir.mkdir(parents=True, exist_ok=True)
-        model_output_path = models_dir / f"{config.project_name}.joblib"
+            # Store model path in config for testing
+            config.model_path = str(model_path)
+            self.config_manager.save(config)
 
-        console.print(f"\nTraining custom wake word model...")
-        console.print(f"Base model: alexa (pre-trained)")
-        console.print(f"Output: {model_output_path}")
-
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console
-        ) as progress:
-            task = progress.add_task("Training model...", total=None)
-
-            try:
-                # Train custom verifier using OpenWakeWord
-                # This uses a pre-trained base model and trains a custom verifier
-                train_custom_verifier(
-                    positive_reference_clips=str(combined_positive_dir),
-                    negative_reference_clips=str(negative_dir),
-                    output_path=str(model_output_path),
-                    model_name="alexa",  # Use pre-trained alexa model as base
-                    # Optional: add inference_framework='onnx' if needed
-                )
-
-                progress.update(task, completed=True, description="✓ Model trained successfully")
-
-            except Exception as e:
-                logger.exception("Model training failed")
-                raise RuntimeError(f"Failed to train model: {e}")
-
-        console.print(f"\n[green]✓[/green] Model saved to: {model_output_path}")
-
-        # Store model path in config for testing
-        config.model_path = str(model_output_path)
-        config.save()
+        except Exception as e:
+            logger.exception("Model training failed")
+            raise RuntimeError(f"Failed to train model: {e}")
 
     def _display_completion_summary(self, config: TrainingConfig):
         """
@@ -386,7 +421,8 @@ def run_training(
     project_path: Path,
     workspace_path: Path,
     resume: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
+    force: bool = False
 ):
     """
     Run training pipeline
@@ -396,6 +432,7 @@ def run_training(
         workspace_path: Path to workspace directory
         resume: Resume from checkpoint
         verbose: Enable verbose output
+        force: Force full retrain (regenerate all clips and features)
     """
     orchestrator = TrainingOrchestrator(project_path, workspace_path)
-    orchestrator.run(resume=resume, verbose=verbose)
+    orchestrator.run(resume=resume, verbose=verbose, force=force)

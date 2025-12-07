@@ -88,14 +88,16 @@ def record(ctx, project_name, workspace, count, duration):
 @click.argument('project_name')
 @click.option('--workspace', '-w', default=None, help='Custom workspace path')
 @click.option('--resume', is_flag=True, help='Resume from last checkpoint')
+@click.option('--force', '-f', is_flag=True, help='Force full retrain (regenerate all clips and features)')
 @click.pass_context
-def train(ctx, project_name, workspace, resume):
+def train(ctx, project_name, workspace, resume, force):
     """Train wake word model"""
     commands.train_model(
         project_name,
         workspace,
         resume,
-        ctx.obj.get('verbose', False)
+        ctx.obj.get('verbose', False),
+        force
     )
 
 
