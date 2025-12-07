@@ -149,14 +149,18 @@ class RecordingUI:
         output_path = self.output_dir / f"sample_{sample_number:04d}.wav"
 
         console.print(f"\n[bold]Recording sample {sample_number}[/bold]")
-        console.print(f"Speak your wake word in [cyan]{duration}[/cyan] seconds...")
+        console.print(f"Get ready to speak your wake word ({duration:.1f} seconds)...")
 
-        # Countdown
+        # Countdown with clear visual feedback
+        console.print("\n[yellow]Starting in:[/yellow]")
         for i in range(3, 0, -1):
-            console.print(f"  {i}...", end="\r")
+            console.print(f"  [bold yellow]{i}[/bold yellow]")
             time.sleep(1)
 
-        console.print("  🎤 Recording!", end="\r")
+        console.print("\n[bold green]🎤 SPEAK NOW![/bold green]")
+
+        # Small delay to let user start speaking
+        time.sleep(0.3)
 
         try:
             # Record
@@ -256,15 +260,19 @@ class RecordingUI:
                         advance=1,
                         description=f"Recording samples ({len(recorded_files)}/{count})"
                     )
+                    sample_num += 1
                 else:
                     # Ask if user wants to retry or skip
+                    # Stop progress temporarily to show prompt
+                    progress.stop()
+
                     console.print("\n[yellow]Options:[/yellow]")
                     console.print("  r - Retry this sample")
                     console.print("  s - Skip this sample")
                     console.print("  q - Quit session")
 
                     choice = Prompt.ask(
-                        "What would you like to do?",
+                        "\nWhat would you like to do?",
                         choices=['r', 's', 'q'],
                         default='r'
                     )
@@ -273,13 +281,19 @@ class RecordingUI:
                         console.print("[yellow]Session ended early[/yellow]")
                         break
                     elif choice == 's':
+                        # Skip this sample and move to next
+                        progress.start()
                         progress.update(
                             task,
                             advance=1,
                             description=f"Recording samples ({len(recorded_files)}/{count})"
                         )
-
-                sample_num += 1
+                        sample_num += 1
+                    elif choice == 'r':
+                        # Retry - don't increment sample_num, just loop again
+                        console.print("[cyan]Retrying sample...[/cyan]")
+                        progress.start()
+                        continue
 
                 # Brief pause between recordings
                 if len(recorded_files) < count:
@@ -357,7 +371,7 @@ class RecordingUI:
 def run_recording_session(
     output_dir: Path,
     count: int = 20,
-    duration: float = 2.0,
+    duration: float = 1.5,
     sample_rate: int = 16000
 ) -> List[Path]:
     """

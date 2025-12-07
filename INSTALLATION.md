@@ -18,7 +18,7 @@ Complete installation instructions for easy-oww, including external storage setu
 | Component | Requirement | Notes |
 |-----------|-------------|-------|
 | **Python** | 3.7 or higher | Python 3.9+ recommended |
-| **Storage** | 40GB free | For required datasets only |
+| **Storage** | 20GB free | For required datasets only |
 | **RAM** | 4GB | 8GB+ recommended for training |
 | **Microphone** | Any USB or built-in | For recording samples |
 | **Internet** | Stable connection | For downloading datasets (~40GB) |
@@ -28,7 +28,7 @@ Complete installation instructions for easy-oww, including external storage setu
 | Component | Requirement | Benefit |
 |-----------|-------------|---------|
 | **Python** | 3.9 - 3.11 | Better compatibility |
-| **Storage** | 60GB+ free | For all datasets + workspace |
+| **Storage** | 40GB+ free | For all datasets + workspace |
 | **RAM** | 8GB+ | Faster training, larger batches |
 | **GPU** | CUDA-compatible | 50-70% faster training |
 | **SSD** | Any SSD | Faster I/O operations |
@@ -39,14 +39,14 @@ Understanding where the space goes:
 
 | Component | Size | Required | Description |
 |-----------|------|----------|-------------|
-| **ACAV100M Features** | 40GB | Yes | Pre-computed audio embeddings for training |
+| **ACAV100M Features** | 17.5GB | Yes | Pre-computed audio embeddings for training |
 | **MIT RIR Dataset** | 2GB | Yes | Room impulse responses for augmentation |
 | **FSD50K Dataset** | 30GB | No | Background sounds and negative samples |
 | **TTS Voices** | ~200MB | Yes | 2-3 voice models for synthesis |
 | **Piper Binary** | ~50MB | Yes | TTS engine binary |
 | **Workspace** | ~1-5GB | Yes | Projects, models, recordings |
-| **Total (Required)** | **~43GB** | - | Minimum for basic functionality |
-| **Total (Recommended)** | **~75GB** | - | For full feature set |
+| **Total (Required)** | **~20GB** | - | Minimum for basic functionality |
+| **Total (Recommended)** | **~52GB** | - | For full feature set |
 
 ## Standard Installation
 

@@ -7,8 +7,8 @@ Get your first wake word model working in under an hour! This guide assumes you 
 Before starting, ensure you have:
 
 - [ ] Python 3.7+ installed (`python3 --version`)
-- [ ] 50+ GB external USB-C drive or SSD (recommended) OR 50+ GB internal storage
-- [ ] Stable internet connection (for ~40 GB downloads)
+- [ ] 30+ GB external USB-C drive or SSD (recommended) OR 30+ GB internal storage
+- [ ] Stable internet connection (for ~20 GB downloads)
 - [ ] Microphone (built-in laptop mic is fine)
 - [ ] 1-2 hours of time
 
@@ -97,11 +97,11 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 ### 3. Download Datasets (20-40 minutes)
 
 ```bash
-# Download required datasets (~43 GB)
+# Download required datasets (~20 GB)
 easy-oww download --required-only
 
 # What gets downloaded:
-# - ACAV100M features (40 GB) - audio embeddings
+# - ACAV100M features (17.5 GB) - audio embeddings
 # - MIT RIR dataset (2 GB) - room acoustics
 # Progress bars will show download status
 # Downloads auto-resume if interrupted

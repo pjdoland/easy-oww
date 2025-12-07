@@ -18,7 +18,7 @@ class AudioValidator:
         sample_rate: int = 16000,
         min_duration: float = 0.5,
         max_duration: float = 3.0,
-        min_level_db: float = -50.0,
+        min_level_db: float = -65.0,  # Relaxed from -50 to accept quieter recordings
         max_level_db: float = -10.0,
         silence_threshold_db: float = -60.0
     ):
@@ -104,12 +104,14 @@ class AudioValidator:
 
         # Check for silence
         silence_frames = self._detect_silence(audio, sample_rate)
-        silence_percentage = len(silence_frames) / len(audio) * 100
+        # Count True values (silence_frames is a boolean array)
+        silence_percentage = np.sum(silence_frames) / len(silence_frames) * 100
         metrics['silence_percentage'] = silence_percentage
 
-        if silence_percentage > 80:
+        # Relaxed thresholds for wake words (which naturally have silence padding)
+        if silence_percentage > 90:
             issues.append(f"Too much silence ({silence_percentage:.1f}%)")
-        elif silence_percentage > 60:
+        elif silence_percentage > 75:
             warnings.append(f"High silence level ({silence_percentage:.1f}%)")
 
         # Check for DC offset

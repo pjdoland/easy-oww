@@ -172,7 +172,8 @@ class TrainingOrchestrator:
         # Generate synthetic clips
         if config.synthetic_samples > 0:
             # Check Piper and voices
-            piper = PiperTTS(self.piper_dir)
+            # Pass workspace path - PiperTTS will look for voices in workspace/voices
+            piper = PiperTTS(self.workspace_path)
             if not piper.is_installed():
                 raise RuntimeError("Piper TTS is not installed. Run 'easy-oww init' first.")
 
@@ -275,15 +276,22 @@ class TrainingOrchestrator:
             config: Training configuration
             resume: Resume from checkpoint
         """
-        console.print("\n[bold]Preparing to train model...[/bold]")
+        from openwakeword import train_custom_verifier
+        from rich.progress import Progress, SpinnerColumn, TextColumn
 
-        # Get clip counts
+        console.print("\n[bold]Phase 3: Model Training[/bold]")
+
+        # Get clip directories
         clips_dir = Path(config.clips_dir)
-        positive_clips = list((clips_dir / 'positive').glob('*.wav'))
-        positive_aug_clips = list((clips_dir / 'positive_augmented').glob('*.wav'))
-        negative_clips = list((clips_dir / 'negative').glob('*.wav'))
+        positive_dir = clips_dir / 'positive'
+        positive_aug_dir = clips_dir / 'positive_augmented'
+        negative_dir = clips_dir / 'negative'
 
-        total_positive = len(positive_clips) + len(positive_aug_clips)
+        # Combine positive clips
+        all_positive_clips = list(positive_dir.glob('*.wav')) + list(positive_aug_dir.glob('*.wav'))
+        negative_clips = list(negative_dir.glob('*.wav'))
+
+        total_positive = len(all_positive_clips)
         total_negative = len(negative_clips)
 
         console.print(f"\nTraining data:")
@@ -291,24 +299,64 @@ class TrainingOrchestrator:
         console.print(f"  Negative samples: {total_negative}")
         console.print(f"  Total: {total_positive + total_negative}")
 
-        if total_positive < 100:
+        if total_positive < 50:
             console.print("[yellow]⚠[/yellow] Low number of positive samples, model may not perform well")
+            console.print("    Consider recording more samples or generating more synthetic clips")
 
         if total_negative < total_positive:
-            console.print("[yellow]⚠[/yellow] Fewer negative than positive samples, consider generating more")
+            console.print("[yellow]⚠[/yellow] Fewer negative than positive samples")
+            console.print("    Model may have high false positive rate")
 
-        # Integration with OpenWakeWord training
-        console.print("\n[cyan]Model training integration:[/cyan]")
-        console.print("Training will use OpenWakeWord's training pipeline:")
-        console.print("  1. Generate embeddings from melspectrogram features")
-        console.print("  2. Train classification model")
-        console.print("  3. Export to ONNX format")
+        # Prepare combined positive directory for training
+        # OpenWakeWord's train_custom_verifier expects all positives in one directory
+        combined_positive_dir = clips_dir / 'positive_combined'
+        combined_positive_dir.mkdir(exist_ok=True)
 
-        console.print("\n[yellow]Note:[/yellow] OpenWakeWord model training integration coming soon.")
-        console.print("For now, clips are prepared in the correct format.")
-        console.print(f"\nClips location: {clips_dir}")
-        console.print("\nYou can use these clips with the OpenWakeWord training script:")
-        console.print("[cyan]python -m openwakeword.train --help[/cyan]")
+        console.print(f"\nPreparing training data...")
+        import shutil
+        for clip in all_positive_clips:
+            dest = combined_positive_dir / clip.name
+            if not dest.exists():
+                shutil.copy2(clip, dest)
+
+        # Output model path
+        models_dir = Path(config.models_dir)
+        models_dir.mkdir(parents=True, exist_ok=True)
+        model_output_path = models_dir / f"{config.project_name}.joblib"
+
+        console.print(f"\nTraining custom wake word model...")
+        console.print(f"Base model: alexa (pre-trained)")
+        console.print(f"Output: {model_output_path}")
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Training model...", total=None)
+
+            try:
+                # Train custom verifier using OpenWakeWord
+                # This uses a pre-trained base model and trains a custom verifier
+                train_custom_verifier(
+                    positive_reference_clips=str(combined_positive_dir),
+                    negative_reference_clips=str(negative_dir),
+                    output_path=str(model_output_path),
+                    model_name="alexa",  # Use pre-trained alexa model as base
+                    # Optional: add inference_framework='onnx' if needed
+                )
+
+                progress.update(task, completed=True, description="✓ Model trained successfully")
+
+            except Exception as e:
+                logger.exception("Model training failed")
+                raise RuntimeError(f"Failed to train model: {e}")
+
+        console.print(f"\n[green]✓[/green] Model saved to: {model_output_path}")
+
+        # Store model path in config for testing
+        config.model_path = str(model_output_path)
+        config.save()
 
     def _display_completion_summary(self, config: TrainingConfig):
         """
@@ -317,18 +365,21 @@ class TrainingOrchestrator:
         Args:
             config: Training configuration
         """
+        model_path = getattr(config, 'model_path', 'Not trained')
+
         console.print(Panel.fit(
             f"[bold green]Training Complete![/bold green]\n\n"
             f"Project: {config.project_name}\n"
             f"Wake Word: {config.wake_word}\n\n"
-            f"Clips prepared in: {config.clips_dir}\n"
-            f"Ready for model training!",
+            f"Model: {model_path}\n"
+            f"Clips: {config.clips_dir}",
             title="Success"
         ))
 
         console.print("\n[bold]Next steps:[/bold]")
-        console.print(f"  1. Review generated clips: {config.clips_dir}")
-        console.print(f"  2. Test the trained model: [cyan]easy-oww test {config.project_name}[/cyan]")
+        console.print(f"  1. Test the model: [cyan]easy-oww test {config.project_name}[/cyan]")
+        console.print(f"  2. Review generated clips: {config.clips_dir}")
+        console.print(f"\n[dim]Model location: {model_path}[/dim]")
 
 
 def run_training(

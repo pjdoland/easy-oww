@@ -2,88 +2,118 @@
 FSD50K sound events dataset downloader
 """
 import os
-import requests
-import zipfile
+import shutil
 from pathlib import Path
+from typing import Optional
 from tqdm import tqdm
 
 
 class FSD50kDownloader:
-    """Downloads FSD50K dataset for background sound augmentation"""
+    """Downloads FSD50K dataset for background sound augmentation using Hugging Face"""
 
-    ZENODO_RECORD = "4060432"
-    FILES = [
-        ("FSD50K.dev_audio.zip", "https://zenodo.org/record/4060432/files/FSD50K.dev_audio.zip"),
-        ("FSD50K.eval_audio.zip", "https://zenodo.org/record/4060432/files/FSD50K.eval_audio.zip"),
-    ]
+    # Using Hugging Face dataset instead of direct Zenodo download
+    # The Zenodo zip files are very large and prone to corruption
+    HF_DATASET = "Fhrozen/FSD50k"
 
     SIZE_GB = 30
 
-    def __init__(self, dest_dir: str):
+    def __init__(self, dest_dir: str, cache_dir: Optional[str] = None):
         """
         Initialize FSD50K downloader
 
         Args:
             dest_dir: Destination directory
+            cache_dir: Cache directory for Hugging Face datasets (optional)
         """
         self.dest_dir = Path(dest_dir) / 'fsd50k'
         self.dest_dir.mkdir(parents=True, exist_ok=True)
 
-    def download_and_extract(self, filename: str, url: str) -> Path:
-        """
-        Download and extract a zip file
-
-        Args:
-            filename: Name of the file
-            url: Download URL
-
-        Returns:
-            Path to extracted directory
-        """
-        zip_path = self.dest_dir / filename
-
-        # Download if not exists
-        if not zip_path.exists():
-            print(f"Downloading {filename}...")
-            response = requests.get(url, stream=True, timeout=60)
-            response.raise_for_status()
-
-            total_size = int(response.headers.get('content-length', 0))
-
-            with open(zip_path, 'wb') as f:
-                with tqdm(total=total_size, unit='B', unit_scale=True, desc=filename) as pbar:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            pbar.update(len(chunk))
-
-        # Extract
-        print(f"Extracting {filename}...")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(self.dest_dir)
-
-        # Cleanup zip file
-        zip_path.unlink()
-
-        return self.dest_dir
+        # Use cache_dir if provided, otherwise use dest_dir parent's cache
+        if cache_dir:
+            self.cache_dir = Path(cache_dir)
+        else:
+            self.cache_dir = Path(dest_dir).parent / '.cache' / 'huggingface'
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def download_all(self) -> Path:
         """
-        Download and extract all FSD50K files
+        Download FSD50K dataset using Hugging Face datasets library
 
         Returns:
             Path to FSD50K directory
+
+        Raises:
+            ImportError: If datasets library is not installed
+            RuntimeError: If download fails
         """
-        print(f"Downloading FSD50K dataset (~{self.SIZE_GB}GB)...")
+        print(f"Downloading FSD50K dataset from Hugging Face (~{self.SIZE_GB}GB)...")
+        print("Note: This may take a while. The dataset will be cached by Hugging Face.")
 
-        for filename, url in self.FILES:
-            try:
-                self.download_and_extract(filename, url)
-            except Exception as e:
-                print(f"Failed to download {filename}: {e}")
+        try:
+            from datasets import load_dataset
+            import soundfile as sf
+        except ImportError:
+            raise ImportError(
+                "The 'datasets' library is required to download FSD50K. "
+                "Install it with: pip install datasets soundfile"
+            )
 
-        print(f"✓ FSD50K downloaded to: {self.dest_dir}")
-        return self.dest_dir
+        try:
+            # Load dataset from Hugging Face
+            # Cache to the specified directory instead of ~/.cache/huggingface
+            print(f"Loading dataset from {self.HF_DATASET}...")
+            print(f"Cache directory: {self.cache_dir}")
+            dataset = load_dataset(self.HF_DATASET, cache_dir=str(self.cache_dir))
+
+            # Create directories for dev and eval audio
+            dev_dir = self.dest_dir / 'FSD50K.dev_audio'
+            eval_dir = self.dest_dir / 'FSD50K.eval_audio'
+            dev_dir.mkdir(exist_ok=True)
+            eval_dir.mkdir(exist_ok=True)
+
+            # Process dev split
+            if 'dev' in dataset:
+                print(f"Saving dev audio files to {dev_dir}...")
+                for idx, example in enumerate(tqdm(dataset['dev'], desc="Dev files")):
+                    if 'audio' in example:
+                        audio_data = example['audio']
+                        audio_array = audio_data['array']
+                        sample_rate = audio_data['sampling_rate']
+
+                        # Get original filename or create one
+                        filename = example.get('file_name', f'dev_{idx:05d}.wav')
+                        if not filename.endswith('.wav'):
+                            filename = f"{filename}.wav"
+
+                        output_path = dev_dir / filename
+                        sf.write(output_path, audio_array, sample_rate)
+
+            # Process eval split
+            if 'eval' in dataset:
+                print(f"Saving eval audio files to {eval_dir}...")
+                for idx, example in enumerate(tqdm(dataset['eval'], desc="Eval files")):
+                    if 'audio' in example:
+                        audio_data = example['audio']
+                        audio_array = audio_data['array']
+                        sample_rate = audio_data['sampling_rate']
+
+                        # Get original filename or create one
+                        filename = example.get('file_name', f'eval_{idx:05d}.wav')
+                        if not filename.endswith('.wav'):
+                            filename = f"{filename}.wav"
+
+                        output_path = eval_dir / filename
+                        sf.write(output_path, audio_array, sample_rate)
+
+            print(f"✓ FSD50K downloaded to: {self.dest_dir}")
+            return self.dest_dir
+
+        except Exception as e:
+            import traceback
+            print(f"Failed to download FSD50K dataset: {e}")
+            print("\nFull traceback:")
+            traceback.print_exc()
+            raise RuntimeError(f"FSD50K download failed: {e}")
 
     def is_cached(self) -> bool:
         """Check if FSD50K is already downloaded"""

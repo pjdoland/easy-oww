@@ -1,6 +1,7 @@
 """
 Command implementations for easy-oww CLI
 """
+import os
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -55,6 +56,8 @@ def init_workspace(workspace_path=None, verbose=False):
         workspace_path: Custom workspace path
         verbose: Enable verbose output
     """
+    from easy_oww.utils.config import ConfigManager
+
     console.print(Panel.fit(
         "[bold cyan]Welcome to easy-oww![/bold cyan]\n\n"
         "This tool will guide you through creating custom wake word models.\n\n"
@@ -68,6 +71,10 @@ def init_workspace(workspace_path=None, verbose=False):
 
     # Initialize path manager
     paths = PathManager(workspace_path)
+
+    # Save workspace path for future commands if custom path provided
+    if workspace_path is not None:
+        ConfigManager.save_workspace(str(paths.workspace))
 
     console.print("\n[bold]Checking system requirements...[/bold]")
 
@@ -157,6 +164,12 @@ def download_datasets(workspace_path=None, required_only=False, verbose=False):
 
     console.print("\n[bold cyan]Dataset Download[/bold cyan]\n")
 
+    # Set Hugging Face cache directory to external drive
+    # This ensures all HF downloads go to the workspace, not ~/.cache/huggingface
+    hf_cache = str(paths.workspace / '.cache' / 'huggingface')
+    os.environ['HF_HOME'] = hf_cache
+    os.environ['HF_DATASETS_CACHE'] = hf_cache
+
     # Initialize dataset manager
     manager = DatasetManager(
         str(paths.datasets),
@@ -175,7 +188,7 @@ def download_datasets(workspace_path=None, required_only=False, verbose=False):
             traceback.print_exc()
 
 
-def create_project(project_name, workspace_path=None, wake_word=None, samples=1000, steps=10000, verbose=False):
+def create_project(project_name, workspace_path=None, wake_word=None, samples=1000, steps=10000, duration=1.5, verbose=False):
     """
     Create new wake word project
 
@@ -185,6 +198,7 @@ def create_project(project_name, workspace_path=None, wake_word=None, samples=10
         wake_word: Wake word/phrase
         samples: Number of training samples
         steps: Training steps
+        duration: Recording duration in seconds (default: 1.5)
         verbose: Enable verbose output
     """
     from easy_oww.training import ConfigManager
@@ -243,7 +257,7 @@ def create_project(project_name, workspace_path=None, wake_word=None, samples=10
     console.print(f"  2. Train model: [cyan]easy-oww train {project_name}[/cyan]")
 
 
-def record_samples(project_name, workspace_path=None, count=20, verbose=False):
+def record_samples(project_name, workspace_path=None, count=20, duration=1.5, verbose=False):
     """
     Record wake word samples
 
@@ -251,6 +265,7 @@ def record_samples(project_name, workspace_path=None, count=20, verbose=False):
         project_name: Name of the project
         workspace_path: Custom workspace path
         count: Number of samples to record
+        duration: Recording duration in seconds (default: 1.5)
         verbose: Enable verbose output
     """
     from easy_oww.audio import run_recording_session
@@ -273,7 +288,7 @@ def record_samples(project_name, workspace_path=None, count=20, verbose=False):
         recorded_files = run_recording_session(
             output_dir=recordings_dir,
             count=count,
-            duration=2.0,
+            duration=duration,
             sample_rate=16000
         )
 

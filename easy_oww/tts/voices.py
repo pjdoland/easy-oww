@@ -24,6 +24,7 @@ class VoiceDownloader:
         'en_US': [
             {
                 'name': 'en_US-lessac-medium',
+                'path': 'en/en_US/lessac/medium',
                 'language': 'English (US)',
                 'quality': 'medium',
                 'description': 'Clear American English, good for training',
@@ -31,22 +32,33 @@ class VoiceDownloader:
             },
             {
                 'name': 'en_US-amy-medium',
+                'path': 'en/en_US/amy/medium',
                 'language': 'English (US)',
                 'quality': 'medium',
                 'description': 'Female American English voice',
                 'size_mb': 63
             },
             {
-                'name': 'en_US-ryan-high',
+                'name': 'en_US-joe-medium',
+                'path': 'en/en_US/joe/medium',
+                'language': 'English (US)',
+                'quality': 'medium',
+                'description': 'Male American English voice',
+                'size_mb': 63
+            },
+            {
+                'name': 'en_US-lessac-high',
+                'path': 'en/en_US/lessac/high',
                 'language': 'English (US)',
                 'quality': 'high',
-                'description': 'High quality male voice',
+                'description': 'High quality Lessac voice',
                 'size_mb': 116
             },
         ],
         'en_GB': [
             {
                 'name': 'en_GB-alan-medium',
+                'path': 'en/en_GB/alan/medium',
                 'language': 'English (GB)',
                 'quality': 'medium',
                 'description': 'British English male voice',
@@ -56,6 +68,7 @@ class VoiceDownloader:
         'es_ES': [
             {
                 'name': 'es_ES-mls_9972-low',
+                'path': 'es/es_ES/mls_9972/low',
                 'language': 'Spanish (Spain)',
                 'quality': 'low',
                 'description': 'Spanish voice',
@@ -65,6 +78,7 @@ class VoiceDownloader:
         'fr_FR': [
             {
                 'name': 'fr_FR-mls_1840-low',
+                'path': 'fr/fr_FR/mls_1840/low',
                 'language': 'French (France)',
                 'quality': 'low',
                 'description': 'French voice',
@@ -74,6 +88,7 @@ class VoiceDownloader:
         'de_DE': [
             {
                 'name': 'de_DE-thorsten-medium',
+                'path': 'de/de_DE/thorsten/medium',
                 'language': 'German',
                 'quality': 'medium',
                 'description': 'German male voice',
@@ -92,26 +107,32 @@ class VoiceDownloader:
         self.voices_dir = Path(voices_dir)
         self.voices_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_voice_url(self, voice_name: str) -> tuple[str, str]:
+    def get_voice_url(self, voice_name: str, voice_path: Optional[str] = None) -> tuple[str, str]:
         """
         Get URLs for voice model and config
 
         Args:
             voice_name: Name of voice (e.g., 'en_US-lessac-medium')
+            voice_path: Optional path in repository (e.g., 'en/en_US/lessac/medium')
 
         Returns:
             Tuple of (model_url, config_url)
         """
-        # Voice files are organized as: language/dataset/quality/model.onnx
-        # For simplified access, they're also available directly by name
-        model_url = f"{self.VOICES_BASE_URL}/{voice_name}.onnx"
-        config_url = f"{self.VOICES_BASE_URL}/{voice_name}.onnx.json"
+        # Voice files are organized as: language/code/voice/quality/model.onnx
+        if voice_path:
+            model_url = f"{self.VOICES_BASE_URL}/{voice_path}/{voice_name}.onnx"
+            config_url = f"{self.VOICES_BASE_URL}/{voice_path}/{voice_name}.onnx.json"
+        else:
+            # Fallback to flat structure (legacy)
+            model_url = f"{self.VOICES_BASE_URL}/{voice_name}.onnx"
+            config_url = f"{self.VOICES_BASE_URL}/{voice_name}.onnx.json"
 
         return model_url, config_url
 
     def download_voice(
         self,
         voice_name: str,
+        voice_path: Optional[str] = None,
         show_progress: bool = True
     ) -> tuple[Path, Path]:
         """
@@ -119,6 +140,7 @@ class VoiceDownloader:
 
         Args:
             voice_name: Name of voice to download
+            voice_path: Optional path in repository
             show_progress: Show download progress bar
 
         Returns:
@@ -135,7 +157,7 @@ class VoiceDownloader:
             logger.info(f"Voice already downloaded: {voice_name}")
             return model_path, config_path
 
-        model_url, config_url = self.get_voice_url(voice_name)
+        model_url, config_url = self.get_voice_url(voice_name, voice_path)
 
         try:
             # Download model
@@ -239,10 +261,11 @@ class VoiceDownloader:
 
         for voice_info in voices:
             voice_name = voice_info['name']
+            voice_path = voice_info.get('path')
             console.print(f"\n[cyan]Voice:[/cyan] {voice_info['description']} ({voice_info['size_mb']} MB)")
 
             try:
-                model_path, _ = self.download_voice(voice_name, show_progress=True)
+                model_path, _ = self.download_voice(voice_name, voice_path=voice_path, show_progress=True)
                 downloaded.append(model_path)
             except Exception as e:
                 console.print(f"[red]Failed to download {voice_name}: {e}[/red]")

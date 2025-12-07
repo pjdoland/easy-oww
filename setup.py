@@ -40,10 +40,14 @@ setup(
         "questionary>=1.10.0",
         "rich>=13.0.0",
         "psutil>=5.9.0",
+        "datasets>=2.0.0",
+        "soundfile>=0.12.0",
+        "torch>=2.0.0",
+        "torchcodec>=0.1.0",
+        "piper-tts>=1.3.0",
     ],
     extras_require={
         "gpu": [
-            "torch>=2.0.0",
             "onnxruntime-gpu>=1.15.0",
         ],
         "dev": [

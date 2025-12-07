@@ -4,6 +4,7 @@ Path management for easy-oww workspace and projects
 import os
 from pathlib import Path
 from typing import Optional
+from easy_oww.utils.config import ConfigManager
 
 
 class PathManager:
@@ -14,9 +15,14 @@ class PathManager:
         Initialize path manager
 
         Args:
-            workspace: Custom workspace path (default: ~/.easy-oww)
+            workspace: Custom workspace path (default: configured workspace or ~/.easy-oww)
         """
         if workspace is None:
+            # Try to load from config first
+            workspace = ConfigManager.get_workspace()
+
+        if workspace is None:
+            # Fall back to default
             workspace = os.path.expanduser('~/.easy-oww')
 
         self.workspace = Path(workspace)

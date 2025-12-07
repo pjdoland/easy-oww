@@ -84,7 +84,7 @@ source venv/bin/activate
 # 1. Initialize workspace (one-time setup)
 easy-oww init
 
-# 2. Download required datasets (~50GB)
+# 2. Download required datasets (~20GB)
 easy-oww download --required-only
 
 # 3. Download TTS voices
@@ -117,15 +117,15 @@ source venv/bin/activate
 | Component | Minimum | Recommended | Notes |
 |-----------|---------|-------------|-------|
 | **Python** | 3.7+ | 3.9-3.10 | Best compatibility |
-| **Storage** | 40GB free | 60GB+ free | Can use external USB-C drive |
+| **Storage** | 20GB free | 40GB+ free | Can use external USB-C drive |
 | **RAM** | 4GB | 8GB+ | More = faster training |
 | **Microphone** | Any | USB or built-in | For recording samples |
 | **GPU** | None | CUDA-compatible | 50-70% faster training |
 
 ### Storage Breakdown
 
-**Required (~43GB):**
-- ACAV100M features: 40GB (audio embeddings)
+**Required (~20GB):**
+- ACAV100M features: 17.5GB (audio embeddings)
 - MIT RIR dataset: 2GB (room acoustics)
 - TTS voices: 200MB (2-3 voices)
 - Workspace: 1-2GB (projects, models)
@@ -152,7 +152,7 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 - Installs Piper TTS for synthetic sample generation
 
 ### 2. **Download Datasets**
-- ACAV100M features (40GB) - Pre-computed audio embeddings
+- ACAV100M features (17.5GB) - Pre-computed audio embeddings
 - MIT Room Impulse Responses (2GB) - Acoustic simulations
 - FSD50K (30GB, optional) - Background noise and negative samples
 - Resume capability for interrupted downloads

@@ -15,102 +15,43 @@ logger = get_logger()
 class PiperTTS:
     """Manages Piper TTS installation and usage"""
 
-    # Piper GitHub releases
-    PIPER_REPO = "rhasspy/piper"
-    PIPER_VERSION = "2023.11.14-2"  # Latest stable version
+    # Piper is now available on PyPI as piper-tts
+    # The old rhasspy/piper repo was archived and moved to OHF-Voice/piper1-gpl
+    PIPER_PACKAGE = "piper-tts"
+    PIPER_VERSION = "1.3.0"  # Latest stable version on PyPI
 
     def __init__(self, install_dir: Path):
         """
         Initialize Piper TTS manager
 
         Args:
-            install_dir: Directory to install Piper
+            install_dir: Directory to install Piper (unused now, kept for compatibility)
         """
         self.install_dir = Path(install_dir)
         self.install_dir.mkdir(parents=True, exist_ok=True)
 
-        self.piper_binary = self._get_binary_path()
+        # Piper is now a Python package, not a standalone binary
+        # The binary is installed via pip in the system/venv
         self.voices_dir = self.install_dir / 'voices'
         self.voices_dir.mkdir(exist_ok=True)
 
-    def _get_binary_path(self) -> Path:
-        """
-        Get path to Piper binary based on platform
-
-        Returns:
-            Path to Piper binary
-        """
-        system = platform.system().lower()
-
-        if system == 'darwin':
-            # macOS
-            if platform.machine() == 'arm64':
-                binary_name = 'piper'  # Apple Silicon
-            else:
-                binary_name = 'piper'  # Intel
-        elif system == 'linux':
-            binary_name = 'piper'
-        elif system == 'windows':
-            binary_name = 'piper.exe'
-        else:
-            binary_name = 'piper'
-
-        return self.install_dir / binary_name
-
     def is_installed(self) -> bool:
         """
-        Check if Piper is installed
+        Check if Piper is installed as a Python package
 
         Returns:
-            True if Piper binary exists and is executable
+            True if piper-tts package is installed
         """
-        if not self.piper_binary.exists():
+        try:
+            import importlib.util
+            spec = importlib.util.find_spec("piper")
+            return spec is not None
+        except (ImportError, ModuleNotFoundError):
             return False
-
-        # Check if executable
-        if platform.system() != 'Windows':
-            return self.piper_binary.stat().st_mode & 0o111 != 0
-
-        return True
-
-    def get_download_url(self) -> Tuple[str, str]:
-        """
-        Get download URL for current platform
-
-        Returns:
-            Tuple of (download_url, archive_name)
-
-        Raises:
-            RuntimeError: If platform is not supported
-        """
-        system = platform.system().lower()
-        machine = platform.machine().lower()
-
-        base_url = f"https://github.com/{self.PIPER_REPO}/releases/download/{self.PIPER_VERSION}"
-
-        if system == 'darwin':
-            if 'arm' in machine or 'aarch64' in machine:
-                archive = f"piper_macos_arm64.tar.gz"
-            else:
-                archive = f"piper_macos_x64.tar.gz"
-        elif system == 'linux':
-            if 'aarch64' in machine or 'arm64' in machine:
-                archive = f"piper_linux_aarch64.tar.gz"
-            elif 'arm' in machine:
-                archive = f"piper_linux_armv7l.tar.gz"
-            else:
-                archive = f"piper_linux_x86_64.tar.gz"
-        elif system == 'windows':
-            archive = f"piper_windows_amd64.zip"
-        else:
-            raise RuntimeError(f"Unsupported platform: {system} {machine}")
-
-        url = f"{base_url}/{archive}"
-        return url, archive
 
     def install(self, force: bool = False) -> bool:
         """
-        Install Piper TTS
+        Install Piper TTS using pip
 
         Args:
             force: Force reinstall even if already installed
@@ -125,83 +66,36 @@ class PiperTTS:
             logger.info("Piper already installed")
             return True
 
-        logger.info("Installing Piper TTS...")
+        logger.info("Installing Piper TTS via pip...")
 
         try:
-            import requests
-            import tarfile
-            import zipfile
+            import sys
 
-            # Get download URL
-            url, archive_name = self.get_download_url()
-            logger.debug(f"Downloading from: {url}")
+            # Install using pip
+            cmd = [sys.executable, "-m", "pip", "install", self.PIPER_PACKAGE]
 
-            # Download
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
+            if force:
+                cmd.append("--force-reinstall")
 
-            archive_path = self.install_dir / archive_name
-            total_size = int(response.headers.get('content-length', 0))
+            logger.debug(f"Running: {' '.join(cmd)}")
 
-            # Save archive
-            with open(archive_path, 'wb') as f:
-                if total_size > 0:
-                    downloaded = 0
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        progress = (downloaded / total_size) * 100
-                        logger.debug(f"Download progress: {progress:.1f}%")
-                else:
-                    f.write(response.content)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout for pip install
+            )
 
-            logger.info("Extracting Piper...")
-
-            # Extract based on archive type
-            if archive_name.endswith('.tar.gz'):
-                with tarfile.open(archive_path, 'r:gz') as tar:
-                    # Extract to temporary location first
-                    temp_dir = self.install_dir / 'temp_extract'
-                    temp_dir.mkdir(exist_ok=True)
-                    tar.extractall(temp_dir)
-
-                    # Find piper binary in extracted files
-                    piper_files = list(temp_dir.rglob('piper'))
-                    if piper_files:
-                        # Move binary to install directory
-                        shutil.move(str(piper_files[0]), str(self.piper_binary))
-                    else:
-                        raise RuntimeError("Piper binary not found in archive")
-
-                    # Clean up
-                    shutil.rmtree(temp_dir)
-
-            elif archive_name.endswith('.zip'):
-                with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-                    temp_dir = self.install_dir / 'temp_extract'
-                    temp_dir.mkdir(exist_ok=True)
-                    zip_ref.extractall(temp_dir)
-
-                    # Find piper binary
-                    piper_files = list(temp_dir.rglob('piper.exe'))
-                    if piper_files:
-                        shutil.move(str(piper_files[0]), str(self.piper_binary))
-                    else:
-                        raise RuntimeError("Piper binary not found in archive")
-
-                    # Clean up
-                    shutil.rmtree(temp_dir)
-
-            # Clean up archive
-            archive_path.unlink()
-
-            # Make executable on Unix-like systems
-            if platform.system() != 'Windows':
-                self.piper_binary.chmod(0o755)
+            if result.returncode != 0:
+                stderr = result.stderr
+                raise RuntimeError(f"pip install failed: {stderr}")
 
             logger.info("Piper installed successfully")
             return True
 
+        except subprocess.TimeoutExpired:
+            logger.error("Piper installation timed out")
+            raise RuntimeError("Piper installation timed out")
         except Exception as e:
             logger.error(f"Failed to install Piper: {e}")
             raise RuntimeError(f"Piper installation failed: {e}")
@@ -214,7 +108,7 @@ class PiperTTS:
         sample_rate: int = 16000
     ) -> bool:
         """
-        Generate speech from text using Piper
+        Generate speech from text using Piper Python package
 
         Args:
             text: Text to convert to speech
@@ -229,51 +123,51 @@ class PiperTTS:
             RuntimeError: If generation fails
         """
         if not self.is_installed():
-            raise RuntimeError("Piper is not installed")
+            raise RuntimeError("Piper is not installed. Install with: pip install piper-tts")
 
         if not voice_model.exists():
             raise RuntimeError(f"Voice model not found: {voice_model}")
 
         try:
+            from piper import PiperVoice
+            import wave
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Run Piper
-            # Piper command: echo "text" | piper --model voice.onnx --output_file output.wav
-            cmd = [
-                str(self.piper_binary),
-                '--model', str(voice_model),
-                '--output_file', str(output_path),
-                '--sample_rate', str(sample_rate)
-            ]
+            # Load voice model
+            voice = PiperVoice.load(str(voice_model))
 
-            # Check if model config exists
-            model_config = voice_model.with_suffix('.onnx.json')
-            if model_config.exists():
-                cmd.extend(['--config', str(model_config)])
+            # Generate speech
+            # voice.synthesize() returns a generator that yields AudioChunk objects
+            import numpy as np
+            result = voice.synthesize(text)
 
-            logger.debug(f"Running Piper: {' '.join(cmd)}")
+            # Collect audio data from all chunks
+            audio_data = []
+            for audio_chunk in result:
+                # AudioChunk has audio_int16_array attribute
+                if hasattr(audio_chunk, 'audio_int16_array'):
+                    audio_data.extend(audio_chunk.audio_int16_array)
+                else:
+                    # Fallback for older API
+                    audio_data.extend(audio_chunk)
 
-            # Run command with text as input
-            result = subprocess.run(
-                cmd,
-                input=text.encode('utf-8'),
-                capture_output=True,
-                timeout=30
-            )
+            # Convert to numpy array
+            audio_array = np.array(audio_data, dtype=np.int16)
 
-            if result.returncode != 0:
-                stderr = result.stderr.decode('utf-8', errors='ignore')
-                raise RuntimeError(f"Piper failed: {stderr}")
-
-            if not output_path.exists():
-                raise RuntimeError("Output file was not created")
+            # Write WAV file
+            with wave.open(str(output_path), 'wb') as wav_file:
+                wav_file.setnchannels(1)  # Mono
+                wav_file.setsampwidth(2)  # 16-bit
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(audio_array.tobytes())
 
             logger.debug(f"Generated speech: {output_path}")
             return True
 
-        except subprocess.TimeoutExpired:
-            logger.error("Piper command timed out")
-            raise RuntimeError("Speech generation timed out")
+        except ImportError as e:
+            logger.error("Piper package not found")
+            raise RuntimeError("Piper is not installed. Install with: pip install piper-tts")
         except Exception as e:
             logger.error(f"Failed to generate speech: {e}")
             raise RuntimeError(f"Speech generation failed: {e}")

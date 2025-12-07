@@ -32,10 +32,14 @@ class DatasetManager:
 
         self.cache = CacheManager(cache_dir)
 
-        # Initialize downloaders
+        # Create Hugging Face cache directory in the workspace
+        # This ensures downloads go to the external drive, not ~/.cache/huggingface
+        hf_cache_dir = Path(datasets_dir).parent / '.cache' / 'huggingface'
+
+        # Initialize downloaders with cache directory
         self.acav100m = ACAV100MDownloader(str(self.datasets_dir))
-        self.rir = RIRDownloader(str(self.datasets_dir))
-        self.fsd50k = FSD50kDownloader(str(self.datasets_dir))
+        self.rir = RIRDownloader(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
+        self.fsd50k = FSD50kDownloader(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
 
     def get_dataset_info(self) -> List[Dict]:
         """

@@ -13,10 +13,18 @@ class ACAV100MDownloader:
 
     # URLs for ACAV100M features on Hugging Face
     TRAIN_URL = "https://huggingface.co/datasets/davidscripka/openwakeword_features/resolve/main/openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
-    VAL_URL = "https://huggingface.co/datasets/davidscripka/openwakeword_features/resolve/main/false_positive_validation_set_features.npy"
+    VAL_URL = "https://huggingface.co/datasets/davidscripka/openwakeword_features/resolve/main/validation_set_features.npy"
 
-    TRAIN_SIZE_GB = 40
-    VAL_SIZE_GB = 0.6
+    # Actual file sizes from HuggingFace
+    TRAIN_SIZE_GB = 17.3
+    VAL_SIZE_GB = 0.185  # 185 MB
+
+    # Expected file sizes in bytes for validation
+    TRAIN_SIZE_BYTES = 17300000000  # ~17.3 GB
+    VAL_SIZE_BYTES = 185000000  # ~185 MB
+
+    # Allow 1% tolerance for file size validation
+    SIZE_TOLERANCE = 0.01
 
     def __init__(self, dest_dir: str):
         """
@@ -147,14 +155,44 @@ class ACAV100MDownloader:
         val_path = self.download_validation_features(resume=resume)
         return train_path, val_path
 
+    def _validate_file_size(self, file_path: Path, expected_size: int) -> bool:
+        """
+        Validate downloaded file size
+
+        Args:
+            file_path: Path to file
+            expected_size: Expected size in bytes
+
+        Returns:
+            True if file size is within tolerance
+        """
+        if not file_path.exists():
+            return False
+
+        actual_size = file_path.stat().st_size
+        min_size = expected_size * (1 - self.SIZE_TOLERANCE)
+        max_size = expected_size * (1 + self.SIZE_TOLERANCE)
+
+        return min_size <= actual_size <= max_size
+
     def is_training_cached(self) -> bool:
-        """Check if training features are already downloaded"""
-        return (self.dest_dir / 'acav100m_train.npy').exists()
+        """Check if training features are already downloaded and complete"""
+        file_path = self.dest_dir / 'acav100m_train.npy'
+        return self._validate_file_size(file_path, self.TRAIN_SIZE_BYTES)
 
     def is_validation_cached(self) -> bool:
-        """Check if validation features are already downloaded"""
-        return (self.dest_dir / 'acav100m_val.npy').exists()
+        """Check if validation features are already downloaded and complete"""
+        file_path = self.dest_dir / 'acav100m_val.npy'
+        return self._validate_file_size(file_path, self.VAL_SIZE_BYTES)
 
     def are_all_cached(self) -> bool:
-        """Check if both training and validation are downloaded"""
+        """Check if both training and validation are downloaded and complete"""
         return self.is_training_cached() and self.is_validation_cached()
+
+    def get_training_path(self) -> Path:
+        """Get path to training features file"""
+        return self.dest_dir / 'acav100m_train.npy'
+
+    def get_validation_path(self) -> Path:
+        """Get path to validation features file"""
+        return self.dest_dir / 'acav100m_val.npy'
