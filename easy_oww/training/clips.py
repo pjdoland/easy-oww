@@ -212,6 +212,16 @@ class ClipGenerator:
                         # Load audio
                         sample_rate, audio = wavfile.read(str(sample_path))
 
+                        # Apply random time stretch for speed variation (50% of clips)
+                        # This compensates for older Piper versions without length_scale
+                        if np.random.random() < 0.5:
+                            stretch_rate = np.random.uniform(0.85, 1.15)
+                            if abs(stretch_rate - 1.0) > 0.05:
+                                # Resample for time stretch
+                                num_samples = int(len(audio) * stretch_rate)
+                                from scipy import signal as scipy_signal
+                                audio = scipy_signal.resample(audio, num_samples).astype(np.int16)
+
                         # Prepare clip (normalize, trim/pad)
                         # Preserve content for positive clips (never cut off wake word)
                         audio = self._prepare_clip(audio, preserve_content=True)
