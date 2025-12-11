@@ -226,6 +226,44 @@ class AudioRecorder:
 
         return db
 
+    def playback_audio(self, audio: np.ndarray, device: Optional[int] = None):
+        """
+        Playback recorded audio
+
+        Args:
+            audio: Audio data as numpy array (mono)
+            device: Output device index (None for default)
+
+        Raises:
+            RuntimeError: If playback fails
+        """
+        try:
+            logger.debug(f"Playing back {len(audio)} samples")
+
+            # Ensure correct data type for playback
+            if audio.dtype != np.int16:
+                audio_int16 = audio.astype(np.int16)
+            else:
+                audio_int16 = audio
+
+            # Convert mono to stereo for playback compatibility
+            # Many output devices don't support mono playback
+            if len(audio_int16.shape) == 1:
+                # Duplicate mono channel to create stereo
+                audio_stereo = np.column_stack((audio_int16, audio_int16))
+            else:
+                audio_stereo = audio_int16
+
+            # Play audio (stereo, 2 channels)
+            sd.play(audio_stereo, samplerate=self.sample_rate, device=device)
+            sd.wait()
+
+            logger.debug("Playback complete")
+
+        except Exception as e:
+            logger.error(f"Playback failed: {e}")
+            raise RuntimeError(f"Failed to play audio: {e}")
+
     def test_microphone(
         self,
         duration: float = 2.0,

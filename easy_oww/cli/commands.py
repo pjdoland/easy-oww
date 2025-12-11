@@ -188,7 +188,7 @@ def download_datasets(workspace_path=None, required_only=False, verbose=False):
             traceback.print_exc()
 
 
-def create_project(project_name, workspace_path=None, wake_word=None, samples=1000, steps=10000, duration=1.5, verbose=False):
+def create_project(project_name, workspace_path=None, wake_word=None, samples=1000, steps=10000, duration=3.0, verbose=False):
     """
     Create new wake word project
 
@@ -198,7 +198,7 @@ def create_project(project_name, workspace_path=None, wake_word=None, samples=10
         wake_word: Wake word/phrase
         samples: Number of training samples
         steps: Training steps
-        duration: Recording duration in seconds (default: 1.5)
+        duration: Recording duration in seconds (default: 3.0)
         verbose: Enable verbose output
     """
     from easy_oww.training import ConfigManager
@@ -257,7 +257,7 @@ def create_project(project_name, workspace_path=None, wake_word=None, samples=10
     console.print(f"  2. Train model: [cyan]easy-oww train {project_name}[/cyan]")
 
 
-def record_samples(project_name, workspace_path=None, count=20, duration=1.5, verbose=False):
+def record_samples(project_name, workspace_path=None, count=20, duration=3.0, verbose=False):
     """
     Record wake word samples
 
@@ -265,7 +265,7 @@ def record_samples(project_name, workspace_path=None, count=20, duration=1.5, ve
         project_name: Name of the project
         workspace_path: Custom workspace path
         count: Number of samples to record
-        duration: Recording duration in seconds (default: 1.5)
+        duration: Recording duration in seconds (default: 3.0)
         verbose: Enable verbose output
     """
     from easy_oww.audio import run_recording_session
@@ -306,6 +306,119 @@ def record_samples(project_name, workspace_path=None, count=20, duration=1.5, ve
         if verbose:
             import traceback
             traceback.print_exc()
+
+
+def record_negative_samples(project_name, workspace_path=None, count=20, duration=3.0, verbose=False):
+    """
+    Record negative/adversarial samples
+
+    Args:
+        project_name: Name of the project
+        workspace_path: Custom workspace path
+        count: Number of samples to record
+        duration: Recording duration in seconds (default: 3.0)
+        verbose: Enable verbose output
+    """
+    from easy_oww.audio import run_negative_recording_session
+    from easy_oww.training import ConfigManager
+
+    paths = PathManager(workspace_path)
+
+    if not paths.project_exists(project_name):
+        console.print(f"[red]Error:[/red] Project '{project_name}' not found")
+        console.print(f"Create it first with: [cyan]easy-oww create {project_name}[/cyan]")
+        return
+
+    # Get project config to show wake word
+    project_path = paths.get_project_path(project_name)
+    config_manager = ConfigManager(project_path)
+
+    try:
+        config = config_manager.load()
+        wake_word = config.wake_word
+    except:
+        wake_word = "your wake word"
+
+    # Get negative recordings directory for this project
+    negative_recordings_dir = paths.get_project_path(project_name) / 'recordings_negative'
+
+    console.print(f"\n[bold cyan]Recording negative samples for:[/bold cyan] {project_name}")
+    console.print(f"[bold]Wake word:[/bold] {wake_word}")
+    console.print(f"[bold]Output directory:[/bold] {negative_recordings_dir}\n")
+
+    # Generate example phrases based on wake word
+    examples = generate_negative_examples(wake_word)
+
+    try:
+        # Run negative recording session
+        recorded_files = run_negative_recording_session(
+            output_dir=negative_recordings_dir,
+            count=count,
+            duration=duration,
+            sample_rate=16000,
+            examples=examples
+        )
+
+        if recorded_files:
+            console.print(f"\n[green]✓ Successfully recorded {len(recorded_files)} negative samples![/green]")
+            console.print(f"\nThese negative samples will be used during training to reduce false positives.")
+            console.print(f"\nNext step:")
+            console.print(f"  Train model: [cyan]easy-oww train {project_name}[/cyan]")
+        else:
+            console.print("\n[yellow]No samples were recorded[/yellow]")
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Recording interrupted[/yellow]")
+    except Exception as e:
+        console.print(f"\n[red]Recording failed: {e}[/red]")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+
+
+def generate_negative_examples(wake_word: str) -> list:
+    """
+    Generate example negative phrases based on wake word
+
+    Args:
+        wake_word: The wake word phrase
+
+    Returns:
+        List of suggested negative phrases
+    """
+    examples = []
+    words = wake_word.lower().split()
+
+    # Add partial phrases (individual words)
+    for word in words:
+        if word not in examples:
+            examples.append(word)
+
+    # Add common variations
+    if "hey" in wake_word.lower():
+        examples.extend(["hi", "hay", "hey there"])
+
+    if "ok" in wake_word.lower() or "okay" in wake_word.lower():
+        examples.extend(["ok", "okay then", "alright"])
+
+    # Add rhyming suggestions
+    common_rhymes = {
+        "assistant": ["resistance", "distance", "instance"],
+        "alexa": ["alex", "alexis"],
+        "google": ["giggle", "boggle"],
+        "siri": ["sorry", "sir", "series"]
+    }
+
+    for word in words:
+        if word.lower() in common_rhymes:
+            examples.extend(common_rhymes[word.lower()])
+
+    # Add reversed word order if multi-word
+    if len(words) > 1:
+        examples.append(" ".join(reversed(words)))
+
+    # Limit to 8 examples
+    return examples[:8]
 
 
 def train_model(project_name, workspace_path=None, resume=False, verbose=False, force=False):

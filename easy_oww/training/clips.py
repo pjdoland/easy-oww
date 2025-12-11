@@ -24,7 +24,8 @@ class ClipGenerator:
         recordings_dir: Path,
         clips_dir: Path,
         sample_rate: int = 16000,
-        target_duration_ms: int = 1000
+        target_duration_ms: int = 1000,
+        negative_recordings_dir: Optional[Path] = None
     ):
         """
         Initialize clip generator
@@ -34,9 +35,11 @@ class ClipGenerator:
             clips_dir: Directory to save processed clips
             sample_rate: Target sample rate
             target_duration_ms: Target clip duration in milliseconds
+            negative_recordings_dir: Directory with negative/adversarial recordings
         """
         self.recordings_dir = Path(recordings_dir)
         self.clips_dir = Path(clips_dir)
+        self.negative_recordings_dir = Path(negative_recordings_dir) if negative_recordings_dir else None
         self.sample_rate = sample_rate
         self.target_duration_ms = target_duration_ms
         self.target_samples = int((target_duration_ms / 1000.0) * sample_rate)
@@ -86,7 +89,8 @@ class ClipGenerator:
                         audio = self._resample(audio, sample_rate, self.sample_rate)
 
                     # Normalize and trim/pad to target duration
-                    audio = self._prepare_clip(audio)
+                    # Preserve content for positive clips (never cut off wake word)
+                    audio = self._prepare_clip(audio, preserve_content=True)
 
                     # Save to positive clips
                     output_path = self.positive_dir / f"real_{i:04d}.wav"
@@ -100,6 +104,60 @@ class ClipGenerator:
                 progress.update(task, advance=1)
 
         console.print(f"[green]✓[/green] Processed {len(processed_clips)} recordings")
+        return processed_clips
+
+    def process_negative_recordings(self) -> List[Path]:
+        """
+        Process negative/adversarial recordings into training clips
+
+        Returns:
+            List of processed negative clip paths
+        """
+        if not self.negative_recordings_dir or not self.negative_recordings_dir.exists():
+            logger.debug("No negative recordings directory found")
+            return []
+
+        recording_files = list(self.negative_recordings_dir.glob('*.wav'))
+
+        if not recording_files:
+            logger.debug("No negative recordings found")
+            return []
+
+        console.print(f"\n[bold]Processing {len(recording_files)} negative recordings...[/bold]")
+
+        processed_clips = []
+
+        with Progress(console=console) as progress:
+            task = progress.add_task("Processing negative recordings...", total=len(recording_files))
+
+            for i, recording_path in enumerate(recording_files):
+                try:
+                    # Load audio
+                    sample_rate, audio = wavfile.read(str(recording_path))
+
+                    # Convert to mono if needed
+                    if len(audio.shape) > 1:
+                        audio = audio.mean(axis=1).astype(audio.dtype)
+
+                    # Resample if needed
+                    if sample_rate != self.sample_rate:
+                        audio = self._resample(audio, sample_rate, self.sample_rate)
+
+                    # Normalize and trim/pad to target duration
+                    audio = self._prepare_clip(audio)
+
+                    # Save to negative clips
+                    output_path = self.negative_dir / f"real_negative_{i:04d}.wav"
+                    wavfile.write(str(output_path), self.sample_rate, audio)
+
+                    processed_clips.append(output_path)
+
+                except Exception as e:
+                    logger.warning(f"Failed to process {recording_path.name}: {e}")
+
+                progress.update(task, advance=1)
+
+        console.print(f"[green]✓[/green] Processed {len(processed_clips)} negative recordings")
         return processed_clips
 
     def generate_synthetic_clips(
@@ -155,7 +213,8 @@ class ClipGenerator:
                         sample_rate, audio = wavfile.read(str(sample_path))
 
                         # Prepare clip (normalize, trim/pad)
-                        audio = self._prepare_clip(audio)
+                        # Preserve content for positive clips (never cut off wake word)
+                        audio = self._prepare_clip(audio, preserve_content=True)
 
                         # Save to positive clips
                         output_path = self.positive_dir / f"synth_{i:04d}.wav"
@@ -256,12 +315,13 @@ class ClipGenerator:
         console.print(f"[green]✓[/green] Generated {len(negative_clips)} negative clips")
         return negative_clips
 
-    def _prepare_clip(self, audio: np.ndarray) -> np.ndarray:
+    def _prepare_clip(self, audio: np.ndarray, preserve_content: bool = False) -> np.ndarray:
         """
         Prepare audio clip (normalize, trim/pad to target duration)
 
         Args:
             audio: Audio data
+            preserve_content: If True, never trim audio (only pad). Use for wake word clips.
 
         Returns:
             Prepared audio clip
@@ -278,11 +338,39 @@ class ClipGenerator:
 
         # Trim or pad to target duration
         if len(audio) > self.target_samples:
-            # Trim: center crop
-            start = (len(audio) - self.target_samples) // 2
-            audio = audio[start:start + self.target_samples]
+            if preserve_content:
+                # For wake word clips, detect speech boundaries and crop intelligently
+                # Find the loudest section (likely contains the wake word)
+                audio_float = np.abs(audio.astype(np.float32))
+
+                # Use a sliding window to find the loudest section
+                window_size = self.target_samples
+                if len(audio_float) >= window_size:
+                    max_energy = -1
+                    best_start = 0
+
+                    # Check every possible position
+                    for start_pos in range(len(audio_float) - window_size + 1):
+                        window = audio_float[start_pos:start_pos + window_size]
+                        energy = np.sum(window ** 2)
+
+                        if energy > max_energy:
+                            max_energy = energy
+                            best_start = start_pos
+
+                    # Extract the loudest section (most likely contains wake word)
+                    audio = audio[best_start:best_start + self.target_samples]
+                    logger.debug(f"Trimmed audio using energy-based crop at position {best_start}/{len(audio_float)}")
+                else:
+                    # Fallback to center crop if too short
+                    start = (len(audio) - self.target_samples) // 2
+                    audio = audio[start:start + self.target_samples]
+            else:
+                # For negative clips, use center crop
+                start = (len(audio) - self.target_samples) // 2
+                audio = audio[start:start + self.target_samples]
         elif len(audio) < self.target_samples:
-            # Pad with silence
+            # Pad with silence (always safe)
             pad_length = self.target_samples - len(audio)
             pad_start = pad_length // 2
             pad_end = pad_length - pad_start

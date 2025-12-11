@@ -96,10 +96,13 @@ easy-oww create hey_assistant --wake-word "hey assistant"
 # 5. Record your wake word samples
 easy-oww record hey_assistant --count 20
 
-# 6. Train the model (generates 1000+ samples automatically)
+# 6. (Optional) Record negative/adversarial samples to reduce false positives
+easy-oww record-negative hey_assistant --count 10
+
+# 7. Train the model (generates 1000+ samples automatically)
 easy-oww train hey_assistant
 
-# 7. Test the trained model
+# 8. Test the trained model
 easy-oww test hey_assistant
 ```
 
@@ -256,12 +259,25 @@ easy-oww list
 ### Recording
 
 ```bash
-# Record default 20 samples
+# Record default 20 positive samples
 easy-oww record my_wake_word
 
 # Record custom number
 easy-oww record my_wake_word --count 50
+
+# Record negative/adversarial samples (reduces false positives)
+easy-oww record-negative my_wake_word --count 20
 ```
+
+**What are negative samples?**
+
+Negative samples are phrases that should NOT trigger your wake word. Recording these helps your model distinguish between your wake word and similar-sounding phrases, significantly reducing false positives.
+
+**Examples of good negative samples:**
+- Similar-sounding phrases: "hey system" when wake word is "hey assistant"
+- Partial wake words: just "hey" or just "assistant"
+- Rhyming words: "resistance" for "assistant"
+- Common phrases in your environment
 
 ### Training
 
@@ -339,7 +355,10 @@ After running through the workflow, your project will look like:
 └── projects/
     └── my_wake_word/            # Your project
         ├── config.yaml          # Training configuration
-        ├── recordings/          # Your recorded samples
+        ├── recordings/          # Your recorded wake word samples
+        │   ├── sample_0000.wav
+        │   └── ...
+        ├── recordings_negative/ # Your recorded negative samples (optional)
         │   ├── sample_0000.wav
         │   └── ...
         ├── clips/               # Processed training clips
@@ -356,11 +375,26 @@ After running through the workflow, your project will look like:
 
 ### Recording Tips
 
+**Recording Workflow:**
+- Each recording is **3 seconds** by default
+- After recording, you'll hear an **automatic playback**
+- Choose to: **Accept**, **Re-record**, or **Skip**
+- This ensures every sample meets your quality standards
+
+**Positive Samples (Wake Word):**
 - **Environment**: Record in a quiet room
 - **Distance**: Keep consistent distance from mic (6-12 inches)
 - **Variations**: Vary tone, speed, and emphasis
 - **Consistency**: Pronounce the wake word the same way
 - **Quantity**: 20 minimum, 50+ recommended
+
+**Negative Samples (Adversarial):**
+- **Diversity**: Record various similar-sounding phrases
+- **Partial phrases**: Say individual words from your wake word
+- **Common mistakes**: Think about what people might say by accident
+- **Environment sounds**: Include common phrases you say often
+- **Quantity**: 10-20 samples recommended for better accuracy
+- **Impact**: Can reduce false positives by 30-50%
 
 ### Model Configuration
 
@@ -370,6 +404,7 @@ target_samples: 500
 synthetic_samples: 480
 max_steps: 5000
 voices: 2
+clip_duration_ms: 3000  # 3 seconds
 ```
 
 **For Production:**
@@ -378,6 +413,7 @@ target_samples: 2000
 synthetic_samples: 1950
 max_steps: 15000
 voices: 3+
+clip_duration_ms: 3000  # 3 seconds
 ```
 
 ### Voice Selection

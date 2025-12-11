@@ -40,14 +40,24 @@ class AudioAugmenter:
         self.rir_files = []
         if self.rir_dir and self.rir_dir.exists():
             self.rir_files = list(self.rir_dir.rglob('*.wav'))
-            logger.info(f"Loaded {len(self.rir_files)} RIR files")
+            if self.rir_files:
+                logger.info(f"Loaded {len(self.rir_files)} RIR files from {self.rir_dir}")
+            else:
+                logger.warning(f"RIR directory exists but no .wav files found in {self.rir_dir}")
+        else:
+            logger.info("No RIR directory provided - RIR augmentation will be skipped")
 
         # Load noise files
         self.noise_files = []
         if self.noise_dir and self.noise_dir.exists():
             for ext in ['*.wav', '*.mp3', '*.flac']:
                 self.noise_files.extend(list(self.noise_dir.rglob(ext)))
-            logger.info(f"Loaded {len(self.noise_files)} noise files")
+            if self.noise_files:
+                logger.info(f"Loaded {len(self.noise_files)} noise files from {self.noise_dir}")
+            else:
+                logger.warning(f"Noise directory exists but no audio files found in {self.noise_dir}")
+        else:
+            logger.info("No noise directory provided - noise augmentation will be skipped")
 
         # Cache for loaded noise segments
         self.noise_cache = []
@@ -64,7 +74,7 @@ class AudioAugmenter:
             Audio with RIR applied
         """
         if not self.rir_files:
-            logger.debug("No RIR files available")
+            logger.debug("No RIR files available - skipping RIR augmentation")
             return audio
 
         # Select random RIR
@@ -119,7 +129,7 @@ class AudioAugmenter:
             Audio with noise added
         """
         if not self.noise_files:
-            logger.debug("No noise files available")
+            logger.debug("No noise files available - skipping noise augmentation")
             return audio
 
         # Random SNR if not specified

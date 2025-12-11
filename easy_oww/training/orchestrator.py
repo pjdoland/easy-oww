@@ -199,11 +199,15 @@ class TrainingOrchestrator:
         if force:
             console.print("[yellow]⚠[/yellow] Force flag set - regenerating all clips...")
 
+        # Check for negative recordings directory
+        negative_recordings_dir = self.project_path / 'recordings_negative'
+
         clip_generator = ClipGenerator(
             recordings_dir=Path(config.recordings_dir),
             clips_dir=Path(config.clips_dir),
             sample_rate=config.sample_rate,
-            target_duration_ms=config.clip_duration_ms
+            target_duration_ms=config.clip_duration_ms,
+            negative_recordings_dir=negative_recordings_dir if negative_recordings_dir.exists() else None
         )
 
         # Process real recordings
@@ -214,6 +218,11 @@ class TrainingOrchestrator:
                 f"[yellow]⚠[/yellow] Only found {len(real_clips)} real recordings "
                 f"(expected {config.real_samples})"
             )
+
+        # Process negative recordings (adversarial samples)
+        negative_real_clips = clip_generator.process_negative_recordings()
+        if negative_real_clips:
+            console.print(f"[green]✓[/green] Added {len(negative_real_clips)} adversarial samples from recordings")
 
         # Generate synthetic clips
         if config.synthetic_samples > 0:
@@ -300,9 +309,44 @@ class TrainingOrchestrator:
         rir_dir = self.datasets_dir / 'rir'
         noise_dir = self.datasets_dir / 'fsd50k'
 
+        # Check dataset availability
+        console.print("\n[bold]Checking augmentation datasets:[/bold]")
+
+        rir_available = rir_dir.exists()
+        noise_available = noise_dir.exists()
+
+        if rir_available:
+            rir_count = len(list(rir_dir.rglob('*.wav')))
+            console.print(f"  [green]✓[/green] RIR dataset: {rir_count} files")
+        else:
+            console.print(f"  [yellow]✗[/yellow] RIR dataset: Not found at {rir_dir}")
+            console.print(f"      Download with: [cyan]easy-oww download --required-only[/cyan]")
+
+        if noise_available:
+            # Count noise files in subdirectories
+            noise_count = 0
+            for subdir in ['dev', 'eval', 'FSD50K.dev_audio', 'FSD50K.eval_audio']:
+                subdir_path = noise_dir / subdir
+                if subdir_path.exists():
+                    noise_count += len(list(subdir_path.glob('*.wav')))
+
+            if noise_count > 0:
+                console.print(f"  [green]✓[/green] Noise dataset (FSD50K): {noise_count} files")
+            else:
+                console.print(f"  [yellow]✗[/yellow] Noise dataset: Directory exists but no audio files found")
+                console.print(f"      Download with: [cyan]easy-oww download[/cyan] (without --required-only)")
+        else:
+            console.print(f"  [yellow]✗[/yellow] Noise dataset: Not found at {noise_dir}")
+            console.print(f"      Download with: [cyan]easy-oww download[/cyan] (without --required-only)")
+
+        if not rir_available and not noise_available:
+            console.print("\n[yellow]⚠ Warning:[/yellow] No augmentation datasets available!")
+            console.print("  Augmentation will only apply pitch/time/volume changes.")
+            console.print("  For better results, download datasets with: [cyan]easy-oww download[/cyan]")
+
         augmenter = AudioAugmenter(
-            rir_dir=rir_dir if rir_dir.exists() else None,
-            noise_dir=noise_dir if noise_dir.exists() else None,
+            rir_dir=rir_dir if rir_available else None,
+            noise_dir=noise_dir if noise_available else None,
             sample_rate=config.sample_rate
         )
 

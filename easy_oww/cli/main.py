@@ -52,7 +52,7 @@ def download(ctx, required_only, workspace):
 @click.option('--wake-word', help='Wake word/phrase')
 @click.option('--samples', type=int, default=1000, help='Number of training samples')
 @click.option('--steps', type=int, default=10000, help='Training steps')
-@click.option('--duration', type=float, default=1.5, help='Recording duration in seconds (default: 1.5)')
+@click.option('--duration', type=float, default=3.0, help='Recording duration in seconds (default: 3.0)')
 @click.pass_context
 def create(ctx, project_name, workspace, wake_word, samples, steps, duration):
     """Create new wake word project"""
@@ -71,11 +71,28 @@ def create(ctx, project_name, workspace, wake_word, samples, steps, duration):
 @click.argument('project_name')
 @click.option('--workspace', '-w', default=None, help='Custom workspace path')
 @click.option('--count', '-c', type=int, default=20, help='Number of samples to record')
-@click.option('--duration', type=float, default=1.5, help='Recording duration in seconds (default: 1.5)')
+@click.option('--duration', type=float, default=3.0, help='Recording duration in seconds (default: 3.0)')
 @click.pass_context
 def record(ctx, project_name, workspace, count, duration):
     """Record wake word samples"""
     commands.record_samples(
+        project_name,
+        workspace,
+        count,
+        duration,
+        ctx.obj.get('verbose', False)
+    )
+
+
+@cli.command('record-negative')
+@click.argument('project_name')
+@click.option('--workspace', '-w', default=None, help='Custom workspace path')
+@click.option('--count', '-c', type=int, default=20, help='Number of negative samples to record')
+@click.option('--duration', type=float, default=3.0, help='Recording duration in seconds (default: 3.0)')
+@click.pass_context
+def record_negative(ctx, project_name, workspace, count, duration):
+    """Record negative/adversarial samples"""
+    commands.record_negative_samples(
         project_name,
         workspace,
         count,

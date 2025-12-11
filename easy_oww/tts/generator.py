@@ -19,14 +19,13 @@ class SampleGenerator:
     """Generates synthetic wake word samples using TTS"""
 
     # Variations to apply to wake word for natural speech
+    # Keep variations SHORT to fit within 3-second clips
     PHRASE_VARIATIONS = [
         "{word}",  # Plain
         "{word}.",  # With period
         "{word}!",  # With exclamation
         "{word}?",  # With question
-        "hey {word}",  # With prefix
-        "ok {word}",  # Alternative prefix
-        "{word} please",  # With suffix
+        "{word},",  # With comma (pause)
     ]
 
     # Speed variations (if supported by TTS)
