@@ -184,7 +184,8 @@ class RecordingUI:
                 # Playback the recording
                 console.print("\n[cyan]Playing back your recording...[/cyan]")
                 time.sleep(0.5)
-                self.recorder.playback_audio(audio, device)
+                # Use default output device (not the input device)
+                self.recorder.playback_audio(audio, device=None)
 
                 # Ask user what to do
                 console.print("\n[bold]What would you like to do?[/bold]")
