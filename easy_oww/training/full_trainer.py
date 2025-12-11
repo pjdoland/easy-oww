@@ -136,6 +136,8 @@ class FullModelTrainer:
         augmentation_rounds: int = 3,
         batch_size: int = 128,
         max_negative_weight: int = 25,
+        clip_length: int = None,
+        sample_rate: int = 16000,
         force: bool = False
     ) -> Path:
         """
@@ -148,6 +150,9 @@ class FullModelTrainer:
             target_fp_per_hour: Target false positives per hour
             augmentation_rounds: Number of augmentation rounds per clip
             batch_size: Batch size for augmentation
+            clip_length: Clip length in samples (if None, auto-detect)
+            sample_rate: Audio sample rate
+            force: Force feature regeneration
 
         Returns:
             Path to saved ONNX model
@@ -165,7 +170,13 @@ class FullModelTrainer:
 
         # Step 3: Extract features
         console.print("\n[bold]Step 3: Extracting features[/bold]")
-        total_length = self._determine_clip_length(positive_clips)
+        # Use provided clip_length or auto-detect from clips
+        if clip_length is None:
+            total_length = self._determine_clip_length(positive_clips)
+        else:
+            total_length = clip_length
+            console.print(f"  Using configured clip length: {total_length} samples ({total_length/sample_rate:.2f}s)")
+
         self._extract_features(
             positive_clips,
             all_negative_clips,

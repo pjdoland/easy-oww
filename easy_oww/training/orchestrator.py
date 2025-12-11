@@ -411,6 +411,9 @@ class TrainingOrchestrator:
 
         # Train full model
         try:
+            # Calculate clip length in samples
+            clip_length_samples = int((config.clip_duration_ms / 1000.0) * config.sample_rate)
+
             model_path = train_full_model(
                 project_name=config.project_name,
                 wake_word=config.wake_word,
@@ -424,6 +427,8 @@ class TrainingOrchestrator:
                 augmentation_rounds=2,
                 batch_size=128,
                 max_negative_weight=10,  # Balance: not too high (collapse) or too low (false positives)
+                clip_length=clip_length_samples,  # Pass configured clip length
+                sample_rate=config.sample_rate,
                 force=force
             )
 
