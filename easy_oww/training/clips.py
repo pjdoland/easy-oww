@@ -212,10 +212,11 @@ class ClipGenerator:
                         # Load audio
                         sample_rate, audio = wavfile.read(str(sample_path))
 
-                        # Apply random time stretch for speed variation (50% of clips)
+                        # Apply random time stretch for speed variation (70% of clips)
                         # This compensates for older Piper versions without length_scale
-                        if np.random.random() < 0.5:
-                            stretch_rate = np.random.uniform(0.85, 1.15)
+                        if np.random.random() < 0.7:
+                            # Wider range for more noticeable variation
+                            stretch_rate = np.random.uniform(0.75, 1.25)
                             if abs(stretch_rate - 1.0) > 0.05:
                                 # Resample for time stretch
                                 num_samples = int(len(audio) * stretch_rate)
