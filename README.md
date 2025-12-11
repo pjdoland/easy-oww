@@ -258,14 +258,28 @@ easy-oww list
 
 ### Recording
 
+#### Interactive Recording Workflow
+
+Every recording now includes:
+1. **3-second countdown** before recording starts
+2. **Automatic playback** of what you just recorded
+3. **Accept/Re-record/Skip** options for quality control
+
 ```bash
-# Record default 20 positive samples
+# Record default 20 positive samples (interactive)
 easy-oww record my_wake_word
 
 # Record custom number
 easy-oww record my_wake_word --count 50
 
-# Record negative/adversarial samples (reduces false positives)
+# Adjust recording duration (default is 3.0 seconds)
+easy-oww record my_wake_word --duration 2.5
+```
+
+#### Recording Negative Samples
+
+```bash
+# Record negative/adversarial samples (reduces false positives by 30-50%)
 easy-oww record-negative my_wake_word --count 20
 ```
 
@@ -273,11 +287,17 @@ easy-oww record-negative my_wake_word --count 20
 
 Negative samples are phrases that should NOT trigger your wake word. Recording these helps your model distinguish between your wake word and similar-sounding phrases, significantly reducing false positives.
 
-**Examples of good negative samples:**
+**The tool suggests example phrases based on your wake word:**
 - Similar-sounding phrases: "hey system" when wake word is "hey assistant"
 - Partial wake words: just "hey" or just "assistant"
 - Rhyming words: "resistance" for "assistant"
 - Common phrases in your environment
+
+**Interactive Recording Features:**
+- After each recording, you'll hear playback
+- Choose to Accept (save), Re-record (try again), or Skip
+- Get real-time quality validation feedback
+- See progress as you record
 
 ### Training
 
@@ -375,10 +395,15 @@ After running through the workflow, your project will look like:
 
 ### Recording Tips
 
-**Recording Workflow:**
-- Each recording is **3 seconds** by default
-- After recording, you'll hear an **automatic playback**
-- Choose to: **Accept**, **Re-record**, or **Skip**
+**Interactive Recording Workflow:**
+- Each recording is **3 seconds** by default (customizable with `--duration`)
+- **Countdown**: Clear 3-2-1 countdown before each recording
+- **Automatic playback**: Hear what you just recorded
+- **Quality validation**: Real-time feedback on audio quality
+- **Three options after each recording:**
+  - `a` - **Accept** and save the recording
+  - `r` - **Re-record** if you're not happy with it
+  - `s` - **Skip** this sample and move to the next
 - This ensures every sample meets your quality standards
 
 **Positive Samples (Wake Word):**
@@ -387,6 +412,7 @@ After running through the workflow, your project will look like:
 - **Variations**: Vary tone, speed, and emphasis
 - **Consistency**: Pronounce the wake word the same way
 - **Quantity**: 20 minimum, 50+ recommended
+- **Duration**: 3 seconds gives room for natural pauses
 
 **Negative Samples (Adversarial):**
 - **Diversity**: Record various similar-sounding phrases
@@ -395,6 +421,7 @@ After running through the workflow, your project will look like:
 - **Environment sounds**: Include common phrases you say often
 - **Quantity**: 10-20 samples recommended for better accuracy
 - **Impact**: Can reduce false positives by 30-50%
+- **Suggestions**: Tool provides example phrases based on your wake word
 
 ### Model Configuration
 
