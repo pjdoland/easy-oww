@@ -142,7 +142,14 @@ class PiperTTS:
             # Generate speech with length_scale for speed variation
             # voice.synthesize() returns a generator that yields AudioChunk objects
             import numpy as np
-            result = voice.synthesize(text, length_scale=length_scale)
+
+            # Try to use length_scale if supported (newer Piper versions)
+            try:
+                result = voice.synthesize(text, length_scale=length_scale)
+            except TypeError:
+                # Older Piper versions don't support length_scale
+                logger.debug("length_scale not supported, using default speed")
+                result = voice.synthesize(text)
 
             # Collect audio data from all chunks
             audio_data = []
