@@ -105,7 +105,8 @@ class PiperTTS:
         text: str,
         voice_model: Path,
         output_path: Path,
-        sample_rate: int = 16000
+        sample_rate: int = 16000,
+        length_scale: float = 1.0
     ) -> bool:
         """
         Generate speech from text using Piper Python package
@@ -115,6 +116,7 @@ class PiperTTS:
             voice_model: Path to voice model (.onnx file)
             output_path: Output WAV file path
             sample_rate: Output sample rate (default: 16000)
+            length_scale: Speaking rate (1.0 = normal, <1.0 = faster, >1.0 = slower)
 
         Returns:
             True if generation successful
@@ -137,10 +139,10 @@ class PiperTTS:
             # Load voice model
             voice = PiperVoice.load(str(voice_model))
 
-            # Generate speech
+            # Generate speech with length_scale for speed variation
             # voice.synthesize() returns a generator that yields AudioChunk objects
             import numpy as np
-            result = voice.synthesize(text)
+            result = voice.synthesize(text, length_scale=length_scale)
 
             # Collect audio data from all chunks
             audio_data = []

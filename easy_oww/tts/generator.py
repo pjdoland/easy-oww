@@ -28,8 +28,9 @@ class SampleGenerator:
         "{word},",  # With comma (pause)
     ]
 
-    # Speed variations (if supported by TTS)
-    SPEED_VARIATIONS = [0.9, 1.0, 1.1, 1.2]
+    # Speed variations using Piper's length_scale
+    # length_scale < 1.0 = faster, > 1.0 = slower
+    SPEED_VARIATIONS = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
 
     def __init__(
         self,
@@ -122,12 +123,16 @@ class SampleGenerator:
                     text = variations[i % len(variations)]
                     output_path = self.output_dir / f"{prefix}_{i:04d}.wav"
 
+                    # Random speed variation for diversity
+                    speed = random.choice(self.SPEED_VARIATIONS)
+
                     try:
                         success = self.piper.generate_speech(
                             text,
                             voice_model,
                             output_path,
-                            self.sample_rate
+                            self.sample_rate,
+                            length_scale=speed
                         )
 
                         if success:
@@ -149,12 +154,16 @@ class SampleGenerator:
                 text = variations[i % len(variations)]
                 output_path = self.output_dir / f"{prefix}_{i:04d}.wav"
 
+                # Random speed variation for diversity
+                speed = random.choice(self.SPEED_VARIATIONS)
+
                 try:
                     success = self.piper.generate_speech(
                         text,
                         voice_model,
                         output_path,
-                        self.sample_rate
+                        self.sample_rate,
+                        length_scale=speed
                     )
 
                     if success:
