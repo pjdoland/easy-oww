@@ -306,7 +306,7 @@ class TrainingOrchestrator:
             console.print("[yellow]⚠[/yellow] Force flag set - regenerating augmented clips...")
 
         # Initialize augmenter
-        rir_dir = self.datasets_dir / 'rir'
+        rir_dir = self.datasets_dir / 'mit_rir'
         noise_dir = self.datasets_dir / 'fsd50k'
 
         # Check dataset availability
