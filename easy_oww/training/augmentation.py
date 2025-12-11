@@ -427,7 +427,9 @@ class AudioAugmenter:
         if not self.noise_cache:
             return None
 
-        noise = np.random.choice(self.noise_cache)
+        # Use random.choice instead of np.random.choice for list of arrays
+        import random
+        noise = random.choice(self.noise_cache)
 
         # Extract random segment
         if len(noise) >= length:
