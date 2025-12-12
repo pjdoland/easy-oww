@@ -1,6 +1,6 @@
 # Dataset Management
 
-This module provides dataset downloading, caching, and management for training wake word models. It handles large-scale datasets including ACAV100M audio embeddings, MIT Room Impulse Responses, and FSD50K background sounds.
+This module provides dataset downloading, caching, and management for training wake word models. It handles large-scale datasets including ACAV100M audio embeddings, MIT Room Impulse Responses, LibriSpeech speech samples, and FSD50K background sounds.
 
 ## Overview
 
@@ -8,7 +8,7 @@ The dataset management system enables:
 
 1. **Automated Downloads**: Smart downloading with progress tracking
 2. **Cache Management**: Integrity verification and resumable downloads
-3. **Multiple Datasets**: ACAV100M, MIT RIR, FSD50K support
+3. **Multiple Datasets**: ACAV100M, MIT RIR, LibriSpeech, FSD50K support
 4. **Storage Optimization**: Only download what you need
 5. **External Storage**: Full support for USB drives and external SSDs
 

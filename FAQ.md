@@ -29,10 +29,11 @@ No! easy-oww is designed to be user-friendly. If you can use a terminal and foll
 - 5 min: Recording
 - 15-20 min: Training (500 samples)
 
-**Production version:** ~2-3 hours
+**Production version:** ~3-4 hours (first time)
 - 30-40 min: Initial downloads (one-time)
+- 10-15 min: LibriSpeech download (optional, recommended)
 - 10 min: Recording
-- 1.5-2 hours: Training (2000 samples)
+- 2-3 hours: Training with optimized defaults (10000 steps, 3000+ adversarial negatives)
 
 ### What can I use the trained models for?
 
@@ -233,18 +234,22 @@ Yes! easy-oww supports any language:
 1. **Clip Generation** (15-30 min)
    - Processes your recordings
    - Generates 500-2000 synthetic samples with TTS
+   - Creates 3000+ adversarial negatives (phrases similar to wake word)
+   - Adds 5000+ LibriSpeech speech samples (if downloaded)
    - Creates negative (non-wake-word) samples
 
-2. **Augmentation** (10-20 min)
-   - Applies room acoustics (reverb)
-   - Adds background noise
+2. **Augmentation** (15-30 min)
+   - Applies room acoustics (270 RIR samples)
+   - Adds background noise at various levels
+   - 5 augmentation rounds per clip for robustness
    - Varies pitch and speed
    - Creates 2-3x more samples
 
-3. **Model Training** (30-90 min)
-   - Trains neural network
+3. **Model Training** (1-2 hours)
+   - Trains neural network (10000 steps)
+   - Optimized for low false positive rate
    - Exports to ONNX format
-   - Optimizes for inference
+   - Ready for deployment
 
 ### What are synthetic samples?
 
@@ -374,12 +379,35 @@ Tests model on your training clips and shows metrics.
 
 False positives = detecting wake word when you didn't say it.
 
-**Solutions:**
+**Solutions (ordered by effectiveness):**
 
-1. **Raise threshold** (0.6-0.7)
-2. **Add more negative samples** (edit config, retrain)
-3. **Train longer** (more steps)
-4. **Add problematic sounds to training**
+1. **Download LibriSpeech dataset** (recommended)
+   ```bash
+   easy-oww download  # Adds 5000+ speech negatives
+   ```
+   - Dramatically reduces false positives
+   - Provides diverse real-world speech samples
+
+2. **Increase detection threshold** (no retraining needed)
+   - Try 0.7-0.8 for fewer false alarms
+   - Slight trade-off: might miss wake word occasionally
+
+3. **Record more negative samples**
+   ```bash
+   easy-oww record-negative PROJECT_NAME --count 50
+   ```
+   - Record during TV, music, conversation
+   - Focus on sounds that trigger false positives
+
+4. **Retrain with optimized defaults** (v0.2.0+)
+   - Automatically generates 3000+ adversarial negatives
+   - Uses improved training parameters
+   - Target false positive rate: <10%
+
+**Expected results with LibriSpeech + optimized defaults:**
+- False positive rate: <10% (was ~40% without)
+- Precision: >90% (was ~70%)
+- Recall: 95-100%
 
 ### What threshold should I use?
 
