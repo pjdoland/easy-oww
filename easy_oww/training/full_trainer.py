@@ -232,7 +232,11 @@ class FullModelTrainer:
                 random.shuffle(speech_clips)
                 speech_sample = speech_clips[:5000]
                 negative_clips.extend(speech_sample)
-                console.print(f"  Added {len(speech_sample)} LibriSpeech speech negatives")
+                console.print(f"  [green]✓[/green] Added {len(speech_sample)} LibriSpeech speech negatives")
+            else:
+                console.print(f"  [yellow]![/yellow] LibriSpeech directory exists but no files found")
+        else:
+            console.print(f"  [dim]LibriSpeech not found - download with 'easy-oww download' for better accuracy[/dim]")
 
         console.print(f"  Positive clips: {len(positive_clips)}")
         console.print(f"  Negative clips: {len(negative_clips)}")
@@ -419,10 +423,24 @@ class FullModelTrainer:
         console.print(f"  [dim]This will create ~3000 audio clips (may take 10-15 minutes)[/dim]")
         piper = PiperTTS(self.workspace_dir)
 
-        # Get available voices
+        # Get available voices - try multiple voices for maximum diversity
         voices = []
-        for voice_name in ['en_US-lessac-medium', 'en_US-amy-medium',
-                          'en_US-joe-medium', 'en_GB-alan-medium']:
+        candidate_voices = [
+            # US English voices
+            'en_US-lessac-medium', 'en_US-lessac-high',
+            'en_US-amy-medium', 'en_US-amy-low',
+            'en_US-joe-medium',
+            'en_US-danny-low',
+            'en_US-libritts-high',
+            'en_US-ryan-high', 'en_US-ryan-medium', 'en_US-ryan-low',
+            # British English voices
+            'en_GB-alan-medium', 'en_GB-alan-low',
+            'en_GB-southern_english_female-medium',
+            # Other English variants
+            'en_GB-semaine-medium',
+        ]
+
+        for voice_name in candidate_voices:
             voice_path = piper.get_voice(voice_name)
             if voice_path:
                 voices.append(voice_path)
@@ -430,6 +448,10 @@ class FullModelTrainer:
         if not voices:
             logger.warning("No voices available for adversarial generation")
             return []
+
+        console.print(f"  Using {len(voices)} voice(s) for TTS synthesis")
+        if len(voices) < 5:
+            console.print(f"  [dim]Tip: Download more voices with 'easy-oww download-voices' for better variety[/dim]")
 
         # Generate clips
         adversarial_clips = []
