@@ -124,7 +124,7 @@ class FullModelTrainer:
         self.features_dir.mkdir(exist_ok=True)
 
         # Dataset paths
-        self.rir_dir = self.workspace_dir / 'datasets' / 'rir'
+        self.rir_dir = self.workspace_dir / 'datasets' / 'mit_rir'
         self.noise_dir = self.workspace_dir / 'datasets' / 'fsd50k'
 
     def train(
@@ -222,6 +222,18 @@ class FullModelTrainer:
             negative_clips.extend(adversarial_clips)
             console.print(f"  Added {len(adversarial_clips)} adversarial negatives")
 
+        # Add LibriSpeech speech samples if available
+        librispeech_dir = self.workspace_dir / 'datasets' / 'librispeech'
+        if librispeech_dir.exists():
+            speech_clips = list(librispeech_dir.glob('**/*.wav'))
+            if speech_clips:
+                # Use up to 5000 speech samples for negatives
+                import random
+                random.shuffle(speech_clips)
+                speech_sample = speech_clips[:5000]
+                negative_clips.extend(speech_sample)
+                console.print(f"  Added {len(speech_sample)} LibriSpeech speech negatives")
+
         console.print(f"  Positive clips: {len(positive_clips)}")
         console.print(f"  Negative clips: {len(negative_clips)}")
 
@@ -233,16 +245,157 @@ class FullModelTrainer:
 
         return [str(p) for p in positive_clips], [str(n) for n in negative_clips]
 
+    def _generate_simple_adversarial_texts(self, wake_word, n=3000):
+        """
+        Generate adversarial texts using advanced text manipulation.
+        These are phrases that sound similar to the wake word but should NOT trigger it.
+        This replaces the buggy OpenWakeWord generate_adversarial_texts function.
+        """
+        import random
+
+        adversarial_texts = set()  # Use set to avoid duplicates
+        words = wake_word.lower().split()
+
+        # Common filler words and phrases
+        fillers = ['um', 'uh', 'well', 'so', 'like', 'you know', 'I mean', 'actually',
+                   'okay', 'right', 'yeah', 'oh', 'ah', 'hmm', 'basically', 'literally',
+                   'just', 'maybe', 'perhaps', 'anyway', 'alright']
+
+        common_words = ['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has',
+                       'do', 'does', 'did', 'will', 'would', 'could', 'should', 'can', 'may', 'might',
+                       'this', 'that', 'these', 'those', 'it', 'its', 'what', 'where', 'when', 'why',
+                       'how', 'who', 'which', 'their', 'there', 'they', 'them', 'then', 'than',
+                       'but', 'or', 'and', 'if', 'because', 'as', 'until', 'while', 'of', 'at',
+                       'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
+                       'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down',
+                       'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'once']
+
+        # Common sentence starters and enders
+        sentence_starters = ['I think', 'I want', 'I need', 'I have', 'I saw', 'I heard',
+                            'you know', 'you see', 'they said', 'we can', 'let me',
+                            'can you', 'will you', 'did you', 'have you', 'are you']
+
+        sentence_enders = ['please', 'thanks', 'now', 'today', 'tomorrow', 'yesterday',
+                          'right now', 'later', 'soon', 'already', 'yet', 'still']
+
+        while len(adversarial_texts) < n:
+            choice = random.random()
+
+            if choice < 0.25:  # Partial phrases - missing words (25%)
+                if len(words) > 1:
+                    # Take subset of words (NOT the complete phrase)
+                    num_words = random.randint(1, len(words) - 1)
+                    start = random.randint(0, len(words) - num_words)
+                    partial = ' '.join(words[start:start + num_words])
+                    # Sometimes add filler/common words
+                    if random.random() < 0.5:
+                        partial = random.choice(fillers) + ' ' + partial
+                    if random.random() < 0.5:
+                        partial = partial + ' ' + random.choice(common_words)
+                    adversarial_texts.add(partial)
+                else:
+                    # For single word, take partial characters
+                    word = words[0]
+                    if len(word) > 3:
+                        length = random.randint(2, len(word) - 1)
+                        if random.random() < 0.5:
+                            adversarial_texts.add(word[:length])
+                        else:
+                            adversarial_texts.add(word[-length:])
+
+            elif choice < 0.45:  # Individual words in sentences (20%)
+                if len(words) > 1:
+                    word = random.choice(words)
+                    # Embed in realistic sentence
+                    if random.random() < 0.5:
+                        text = random.choice(sentence_starters) + ' ' + word + ' ' + random.choice(sentence_enders)
+                    else:
+                        text = random.choice(common_words) + ' ' + word + ' ' + random.choice(common_words)
+                    adversarial_texts.add(text)
+                else:
+                    word = words[0]
+                    if len(word) > 2:
+                        partial = word[:len(word)-1]
+                        adversarial_texts.add(random.choice(sentence_starters) + ' ' + partial)
+
+            elif choice < 0.60:  # Shuffled/reordered words (15%)
+                if len(words) > 1:
+                    shuffled = words.copy()
+                    random.shuffle(shuffled)
+                    # Add context sometimes
+                    if random.random() < 0.3:
+                        text = random.choice(fillers) + ' ' + ' '.join(shuffled)
+                    else:
+                        text = ' '.join(shuffled)
+                    adversarial_texts.add(text)
+                else:
+                    word = words[0]
+                    if len(word) > 3:
+                        mid = len(word) // 2
+                        adversarial_texts.add(word[:mid] + ' ' + word[mid:])
+
+            elif choice < 0.75:  # Words with repetition/stutter (15%)
+                if len(words) > 1:
+                    # Repeat one word
+                    word = random.choice(words)
+                    adversarial_texts.add(word + ' ' + word)
+                    # Or stutter on a word
+                    if random.random() < 0.5:
+                        other_words = [w for w in words if w != word]
+                        if other_words:
+                            other = random.choice(other_words)
+                            adversarial_texts.add(word[0] + ' ' + word + ' ' + other)
+                else:
+                    word = words[0]
+                    # Stutter
+                    adversarial_texts.add(word[0] + ' ' + word)
+                    # Or repeat
+                    adversarial_texts.add(word + ' ' + word[:len(word)-1])
+
+            elif choice < 0.85:  # Partial words with context (10%)
+                if len(words) > 1:
+                    # Take partial versions of multiple words
+                    partials = []
+                    for word in words:
+                        if len(word) > 3 and random.random() < 0.5:
+                            partials.append(word[:len(word)-1])
+                        else:
+                            partials.append(word)
+                    # Don't include all words (make it incomplete)
+                    if len(partials) > 1:
+                        num_take = random.randint(1, len(partials) - 1)
+                        partials = partials[:num_take]
+                    text = ' '.join(partials)
+                    if random.random() < 0.3:
+                        text = random.choice(fillers) + ' ' + text
+                    adversarial_texts.add(text)
+                else:
+                    word = words[0]
+                    if len(word) > 2:
+                        adversarial_texts.add(random.choice(fillers) + ' ' + word[:len(word)-1])
+
+            else:  # Single words and very short phrases (15%)
+                if len(words) > 1:
+                    # Just one word
+                    word = random.choice(words)
+                    adversarial_texts.add(word)
+                    # Or one word with filler
+                    adversarial_texts.add(random.choice(fillers) + ' ' + word)
+                    # Or two random words from phrase
+                    if len(words) > 2:
+                        w1, w2 = random.sample(words, 2)
+                        adversarial_texts.add(w1 + ' ' + w2)
+                else:
+                    word = words[0]
+                    if len(word) > 2:
+                        adversarial_texts.add(word[:len(word)-1])
+                        adversarial_texts.add(word + 's')  # Plural
+                        adversarial_texts.add(word + 'ing')  # Gerund
+
+        return list(adversarial_texts)[:n]
+
     def _generate_adversarial_negatives(self):
         """Generate adversarial negative samples using TTS"""
-        # Import only what we need for this specific function
-        try:
-            from openwakeword.data import generate_adversarial_texts
-        except ImportError as e:
-            logger.error(f"Failed to import generate_adversarial_texts: {e}")
-            console.print("[yellow]⚠[/yellow] Skipping adversarial generation due to import error")
-            return []
-
         from easy_oww.tts import PiperTTS
 
         adversarial_dir = self.clips_dir / 'adversarial_negative'
@@ -256,15 +409,14 @@ class FullModelTrainer:
 
         # Generate adversarial texts (phrases similar to wake word)
         console.print(f"  Generating adversarial phrases for '{self.wake_word}'...")
-        adversarial_texts = generate_adversarial_texts(
-            input_text=self.wake_word,
-            N=1000,
-            include_partial_phrase=1.0,
-            include_input_words=0.5
-        )
+
+        # Use simple adversarial generation instead of buggy OpenWakeWord function
+        adversarial_texts = self._generate_simple_adversarial_texts(self.wake_word, n=3000)
+        console.print(f"  Generated {len(adversarial_texts)} unique adversarial phrases")
 
         # Generate audio using Piper TTS
-        console.print(f"  Synthesizing {len(adversarial_texts)} adversarial samples...")
+        console.print(f"  Synthesizing adversarial samples with TTS...")
+        console.print(f"  [dim]This will create ~3000 audio clips (may take 10-15 minutes)[/dim]")
         piper = PiperTTS(self.workspace_dir)
 
         # Get available voices
@@ -287,12 +439,12 @@ class FullModelTrainer:
             TaskProgressColumn(),
             TimeRemainingColumn()
         ) as progress:
-            task = progress.add_task(f"Generating adversarial clips", total=len(adversarial_texts[:1000]))
+            task = progress.add_task(f"Generating adversarial clips", total=len(adversarial_texts))
 
-            for i, text in enumerate(adversarial_texts[:1000]):  # Limit to 1000
+            for i, text in enumerate(adversarial_texts):
                 try:
                     voice = voices[i % len(voices)]
-                    output_path = adversarial_dir / f"adversarial_{i:04d}.wav"
+                    output_path = adversarial_dir / f"adversarial_{i:05d}.wav"  # 5 digits for up to 99999
 
                     # generate_speech writes directly to file and returns boolean
                     success = piper.generate_speech(text, voice, output_path, sample_rate=16000)
@@ -303,7 +455,7 @@ class FullModelTrainer:
                 except Exception as e:
                     logger.warning(f"Failed to generate adversarial clip {i}: {e}")
 
-        console.print(f"  Generated {len(adversarial_clips)} adversarial samples")
+        console.print(f"  [green]✓[/green] Generated {len(adversarial_clips)} adversarial samples")
         return adversarial_clips
 
     def _determine_clip_length(self, positive_clips):
@@ -405,56 +557,65 @@ class FullModelTrainer:
         neg_test_gen = augment_clips(neg_test, **augment_kwargs)
 
         # Extract features
-        console.print("\n  Extracting features (this may take a while)...")
         device = "cuda" if torch.cuda.is_available() else "cpu"
         n_cpus = os.cpu_count() // 2 if os.cpu_count() else 1
 
-        with Progress(
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn()
-        ) as progress:
-            task = progress.add_task("Extracting features", total=4)
+        console.print(f"\n  Extracting features using {device.upper()}...")
+        console.print(f"  [dim]This will process ~{len(pos_train) + len(neg_train) + len(pos_test) + len(neg_test)} total clips[/dim]")
+        if device == "cpu":
+            console.print(f"  [yellow]⚠[/yellow] [dim]Using CPU - this may take 1-2 hours. Consider using GPU for faster processing.[/dim]")
+        else:
+            console.print(f"  [dim]Estimated time: 20-40 minutes[/dim]")
 
-            compute_features_from_generator(
-                pos_train_gen,
-                n_total=len(pos_train),
-                clip_duration=total_length,
-                output_file=str(self.features_dir / "positive_train.npy"),
-                device=device,
-                ncpu=n_cpus if device == "cpu" else 1
-            )
-            progress.update(task, advance=1, description="Positive train features extracted")
+        import time
 
-            compute_features_from_generator(
-                neg_train_gen,
-                n_total=len(neg_train),
-                clip_duration=total_length,
-                output_file=str(self.features_dir / "negative_train.npy"),
-                device=device,
-                ncpu=n_cpus if device == "cpu" else 1
-            )
-            progress.update(task, advance=1, description="Negative train features extracted")
+        console.print(f"\n  [1/4] Processing positive training features ({len(pos_train)} clips)...")
+        start = time.time()
+        compute_features_from_generator(
+            pos_train_gen,
+            n_total=len(pos_train),
+            clip_duration=total_length,
+            output_file=str(self.features_dir / "positive_train.npy"),
+            device=device,
+            ncpu=n_cpus if device == "cpu" else 1
+        )
+        console.print(f"  [green]✓[/green] Positive train complete ({time.time() - start:.1f}s)")
 
-            compute_features_from_generator(
-                pos_test_gen,
-                n_total=len(pos_test),
-                clip_duration=total_length,
-                output_file=str(self.features_dir / "positive_test.npy"),
-                device=device,
-                ncpu=n_cpus if device == "cpu" else 1
-            )
-            progress.update(task, advance=1, description="Positive test features extracted")
+        console.print(f"\n  [2/4] Processing negative training features ({len(neg_train)} clips)...")
+        start = time.time()
+        compute_features_from_generator(
+            neg_train_gen,
+            n_total=len(neg_train),
+            clip_duration=total_length,
+            output_file=str(self.features_dir / "negative_train.npy"),
+            device=device,
+            ncpu=n_cpus if device == "cpu" else 1
+        )
+        console.print(f"  [green]✓[/green] Negative train complete ({time.time() - start:.1f}s)")
 
-            compute_features_from_generator(
-                neg_test_gen,
-                n_total=len(neg_test),
-                clip_duration=total_length,
-                output_file=str(self.features_dir / "negative_test.npy"),
-                device=device,
-                ncpu=n_cpus if device == "cpu" else 1
-            )
-            progress.update(task, advance=1, description="All features extracted")
+        console.print(f"\n  [3/4] Processing positive test features ({len(pos_test)} clips)...")
+        start = time.time()
+        compute_features_from_generator(
+            pos_test_gen,
+            n_total=len(pos_test),
+            clip_duration=total_length,
+            output_file=str(self.features_dir / "positive_test.npy"),
+            device=device,
+            ncpu=n_cpus if device == "cpu" else 1
+        )
+        console.print(f"  [green]✓[/green] Positive test complete ({time.time() - start:.1f}s)")
+
+        console.print(f"\n  [4/4] Processing negative test features ({len(neg_test)} clips)...")
+        start = time.time()
+        compute_features_from_generator(
+            neg_test_gen,
+            n_total=len(neg_test),
+            clip_duration=total_length,
+            output_file=str(self.features_dir / "negative_test.npy"),
+            device=device,
+            ncpu=n_cpus if device == "cpu" else 1
+        )
+        console.print(f"  [green]✓[/green] Negative test complete ({time.time() - start:.1f}s)")
 
         console.print("  [green]✓[/green] Feature extraction complete")
 

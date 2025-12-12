@@ -10,6 +10,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from easy_oww.datasets.acav100m_features import ACAV100MDownloader
 from easy_oww.datasets.rir import RIRDownloader
 from easy_oww.datasets.fsd50k import FSD50kDownloader
+from easy_oww.datasets.librispeech import LibriSpeechDataset
 from easy_oww.datasets.cache import CacheManager
 
 
@@ -40,6 +41,7 @@ class DatasetManager:
         self.acav100m = ACAV100MDownloader(str(self.datasets_dir))
         self.rir = RIRDownloader(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
         self.fsd50k = FSD50kDownloader(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
+        self.librispeech = LibriSpeechDataset(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
 
     def get_dataset_info(self) -> List[Dict]:
         """
@@ -80,6 +82,14 @@ class DatasetManager:
                 'priority': 'Optional',
                 'cached': self.fsd50k.is_cached(),
                 'description': 'Background sound diversity'
+            },
+            {
+                'name': 'LibriSpeech',
+                'key': 'librispeech',
+                'size_gb': 2.0,  # Approximate for 5000 samples
+                'priority': 'Recommended',
+                'cached': self.librispeech.is_cached(),
+                'description': 'Speech negatives (5000+ samples)'
             },
         ]
 
@@ -161,6 +171,17 @@ class DatasetManager:
         else:
             console.print("[green]✓ FSD50K already cached[/green]\n")
 
+        # LibriSpeech (speech negatives)
+        if not self.librispeech.is_cached():
+            try:
+                self.librispeech.download_all(max_samples=5000)
+                self.cache.add_entry('librispeech', str(self.librispeech.speech_dir))
+                console.print("[green]✓ LibriSpeech downloaded[/green]\n")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to download LibriSpeech: {e}[/red]\n")
+        else:
+            console.print("[green]✓ LibriSpeech already cached[/green]\n")
+
     def download_all(self, required_only: bool = False):
         """
         Download all datasets
@@ -205,4 +226,5 @@ class DatasetManager:
             'acav100m_val': self.datasets_dir / 'acav100m_val.npy',
             'rir': self.datasets_dir / 'mit_rir',
             'fsd50k': self.datasets_dir / 'fsd50k',
+            'librispeech': self.datasets_dir / 'librispeech',
         }

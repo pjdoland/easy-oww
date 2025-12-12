@@ -99,7 +99,7 @@ easy-oww record hey_assistant --count 20
 # 6. (Optional) Record negative/adversarial samples to reduce false positives
 easy-oww record-negative hey_assistant --count 10
 
-# 7. Train the model (generates 1000+ samples automatically)
+# 7. Train the model (generates 3000+ adversarial samples automatically)
 easy-oww train hey_assistant
 
 # 8. Test the trained model
@@ -129,11 +129,12 @@ source venv/bin/activate
 
 **Required (~20GB):**
 - ACAV100M features: 17.5GB (audio embeddings)
-- MIT RIR dataset: 2GB (room acoustics)
+- MIT RIR dataset: ~10MB (room acoustics)
 - TTS voices: 200MB (2-3 voices)
 - Workspace: 1-2GB (projects, models)
 
-**Optional (+30GB):**
+**Recommended (+32GB):**
+- LibriSpeech: 2GB (5000+ speech samples for negative training)
 - FSD50K dataset: 30GB (background sounds)
 
 **Limited Space? Use a USB-C Drive!**
@@ -156,8 +157,9 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 
 ### 2. **Download Datasets**
 - ACAV100M features (17.5GB) - Pre-computed audio embeddings
-- MIT Room Impulse Responses (2GB) - Acoustic simulations
-- FSD50K (30GB, optional) - Background noise and negative samples
+- MIT Room Impulse Responses (~10MB) - Acoustic simulations
+- LibriSpeech (2GB, recommended) - 5000+ speech samples for negative training
+- FSD50K (30GB, optional) - Background noise diversity
 - Resume capability for interrupted downloads
 
 ### 3. **Create Project**
@@ -179,6 +181,8 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 - Processes real recordings (normalize, resample, trim/pad)
 - Generates synthetic samples using multiple TTS voices
 - Creates text variations (punctuation, prefixes)
+- Generates 3000+ adversarial negatives (phrases similar to wake word)
+- Adds LibriSpeech speech samples for diverse negatives
 - Extracts negative samples from FSD50K
 - Validates all generated clips
 
