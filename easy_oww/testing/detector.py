@@ -82,8 +82,20 @@ class ModelDetector:
         try:
             # Try to import OpenWakeWord
             try:
-                from openwakeword.model import Model as OWWModel
-                self.model = OWWModel(wakeword_models=[str(self.model_path)])
+                # Suppress TFLite runtime warning (we use ONNX models only)
+                import warnings
+                import logging
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore', message='.*tflite runtime.*')
+                    # Temporarily suppress OpenWakeWord's root logger warnings
+                    logging.getLogger().setLevel(logging.ERROR)
+
+                    from openwakeword.model import Model as OWWModel
+                    self.model = OWWModel(wakeword_models=[str(self.model_path)])
+
+                    # Restore logging level
+                    logging.getLogger().setLevel(logging.WARNING)
+
                 self.model_type = 'openwakeword'
                 logger.info(f"Loaded OpenWakeWord model from {self.model_path}")
             except ImportError:
