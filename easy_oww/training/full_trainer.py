@@ -563,7 +563,10 @@ class FullModelTrainer:
         # Note: augment_clips doesn't accept None for paths, so we skip those params if empty
         console.print("\n  Creating augmentation generators...")
 
-        # Suppress torch_audiomentations FutureWarnings about output_type
+        # TODO: Remove warning suppression when OpenWakeWord updates to support
+        # torch_audiomentations v0.12+ with output_type parameter
+        # Currently pinned to torch-audiomentations <0.12.0 in requirements.txt
+        # Track: https://github.com/dscripka/openWakeWord/issues
         import warnings
         warnings.filterwarnings('ignore', category=FutureWarning, module='torch_audiomentations')
         warnings.filterwarnings('ignore', category=UserWarning, message='.*input samples dtype.*')
