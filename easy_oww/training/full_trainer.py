@@ -563,6 +563,11 @@ class FullModelTrainer:
         # Note: augment_clips doesn't accept None for paths, so we skip those params if empty
         console.print("\n  Creating augmentation generators...")
 
+        # Suppress torch_audiomentations FutureWarnings about output_type
+        import warnings
+        warnings.filterwarnings('ignore', category=FutureWarning, module='torch_audiomentations')
+        warnings.filterwarnings('ignore', category=UserWarning, message='.*input samples dtype.*')
+
         augment_kwargs = {
             'total_length': total_length,
             'batch_size': batch_size
