@@ -196,9 +196,6 @@ class TrainingOrchestrator:
             console.print(f"  Negative clips: {negative_count}")
             return
 
-        if force:
-            console.print("[yellow]⚠[/yellow] Force flag set - regenerating all clips...")
-
         # Check for negative recordings directory
         negative_recordings_dir = self.project_path / 'recordings_negative'
 
@@ -209,6 +206,11 @@ class TrainingOrchestrator:
             target_duration_ms=config.clip_duration_ms,
             negative_recordings_dir=negative_recordings_dir if negative_recordings_dir.exists() else None
         )
+
+        if force:
+            console.print("[yellow]⚠[/yellow] Force flag set - cleaning up synthetic clips...")
+            clip_generator.cleanup_synthetic_clips()
+            console.print("[yellow]⚠[/yellow] Regenerating all clips...")
 
         # Process real recordings
         real_clips = clip_generator.process_real_recordings()
@@ -226,36 +228,55 @@ class TrainingOrchestrator:
 
         # Generate synthetic clips
         if config.synthetic_samples > 0:
-            # Check Piper and voices
-            # Pass workspace path - PiperTTS will look for voices in workspace/voices
-            piper = PiperTTS(self.workspace_path)
-            if not piper.is_installed():
-                raise RuntimeError("Piper TTS is not installed. Run 'easy-oww init' first.")
+            import os
 
-            # Get voice models
-            voice_models = []
-            for voice_name in config.voices:
-                voice_path = piper.get_voice(voice_name)
-                if voice_path:
-                    voice_models.append(voice_path)
-                else:
-                    console.print(f"[yellow]⚠[/yellow] Voice not found: {voice_name}")
+            # Try to use OpenAI TTS first if API key is available
+            use_openai = bool(os.environ.get('OPENAI_API_KEY'))
 
-            if not voice_models:
-                raise RuntimeError(
-                    "No voice models available. "
-                    "Download voices with 'easy-oww download-voices'"
+            if use_openai:
+                console.print("[cyan]OpenAI API key detected - will use GPT-4o-mini-TTS for synthetic samples[/cyan]")
+                # OpenAI TTS doesn't need Piper or voice models
+                synthetic_clips = clip_generator.generate_synthetic_clips(
+                    wake_word=config.wake_word,
+                    voice_models=None,
+                    piper=None,
+                    count=config.synthetic_samples,
+                    use_openai=True
                 )
+            else:
+                # Fall back to Piper TTS
+                console.print("[cyan]Using Piper TTS for synthetic samples[/cyan]")
+                # Check Piper and voices
+                # Pass workspace path - PiperTTS will look for voices in workspace/voices
+                piper = PiperTTS(self.workspace_path)
+                if not piper.is_installed():
+                    raise RuntimeError("Piper TTS is not installed. Run 'easy-oww init' first.")
 
-            console.print(f"Using {len(voice_models)} voices for generation")
+                # Get voice models
+                voice_models = []
+                for voice_name in config.voices:
+                    voice_path = piper.get_voice(voice_name)
+                    if voice_path:
+                        voice_models.append(voice_path)
+                    else:
+                        console.print(f"[yellow]⚠[/yellow] Voice not found: {voice_name}")
 
-            # Generate synthetic clips
-            synthetic_clips = clip_generator.generate_synthetic_clips(
-                wake_word=config.wake_word,
-                voice_models=voice_models,
-                piper=piper,
-                count=config.synthetic_samples
-            )
+                if not voice_models:
+                    raise RuntimeError(
+                        "No voice models available. "
+                        "Download voices with 'easy-oww download-voices'"
+                    )
+
+                console.print(f"Using {len(voice_models)} Piper voices for generation")
+
+                # Generate synthetic clips with Piper
+                synthetic_clips = clip_generator.generate_synthetic_clips(
+                    wake_word=config.wake_word,
+                    voice_models=voice_models,
+                    piper=piper,
+                    count=config.synthetic_samples,
+                    use_openai=False
+                )
 
         # Generate negative clips
         # Use FSD50K dataset for negative samples

@@ -34,20 +34,20 @@ class SampleGenerator:
 
     def __init__(
         self,
-        piper: PiperTTS,
-        output_dir: Path,
+        piper: Optional[PiperTTS] = None,
+        output_dir: Path = None,
         sample_rate: int = 16000
     ):
         """
         Initialize sample generator
 
         Args:
-            piper: PiperTTS instance
+            piper: PiperTTS instance (optional, only needed for Piper TTS generation)
             output_dir: Directory to save generated samples
             sample_rate: Output sample rate
         """
         self.piper = piper
-        self.output_dir = Path(output_dir)
+        self.output_dir = Path(output_dir) if output_dir else Path('.')
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.sample_rate = sample_rate
 

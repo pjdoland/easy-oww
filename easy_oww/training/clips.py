@@ -163,22 +163,28 @@ class ClipGenerator:
     def generate_synthetic_clips(
         self,
         wake_word: str,
-        voice_models: List[Path],
-        piper: PiperTTS,
-        count: int = 500
+        voice_models: List[Path] = None,
+        piper: PiperTTS = None,
+        count: int = 500,
+        use_openai: bool = True
     ) -> List[Path]:
         """
         Generate synthetic clips using TTS
 
         Args:
             wake_word: Wake word text
-            voice_models: List of voice model paths
-            piper: PiperTTS instance
+            voice_models: List of voice model paths (for Piper TTS)
+            piper: PiperTTS instance (for Piper TTS)
             count: Number of clips to generate
+            use_openai: Use OpenAI TTS if available (default: True)
 
         Returns:
             List of generated clip paths
         """
+        import os
+        from easy_oww.tts import OpenAITTS
+        import random
+
         console.print(f"\n[bold]Generating {count} synthetic clips...[/bold]")
 
         # Create temporary directory for raw TTS output
@@ -186,19 +192,87 @@ class ClipGenerator:
         temp_dir.mkdir(exist_ok=True)
 
         try:
-            # Generate samples
-            generator = SampleGenerator(
-                piper=piper,
-                output_dir=temp_dir,
-                sample_rate=self.sample_rate
-            )
+            raw_samples = []
 
-            raw_samples = generator.generate_mixed_samples(
-                wake_word=wake_word,
-                voice_models=voice_models,
-                total_count=count,
-                prefix="synthetic"
-            )
+            # Try to use OpenAI TTS first if requested
+            if use_openai and os.environ.get('OPENAI_API_KEY'):
+                try:
+                    console.print("[cyan]Using OpenAI GPT-4o-mini-TTS for synthetic samples[/cyan]")
+
+                    tts = OpenAITTS()
+                    voices = OpenAITTS.get_diverse_voices(count=10)
+
+                    # Estimate cost
+                    avg_chars_per_sample = len(wake_word) * 1.5  # Account for variations
+                    total_chars = int(avg_chars_per_sample * count)
+                    estimated_cost = tts.estimate_cost(total_chars)
+                    console.print(f"  Estimated cost: ${estimated_cost:.4f} for {total_chars:,} characters")
+
+                    # Generate text variations
+                    from easy_oww.tts import SampleGenerator
+                    generator = SampleGenerator(
+                        piper=None,  # Not used for OpenAI
+                        output_dir=temp_dir,
+                        sample_rate=self.sample_rate
+                    )
+
+                    variations = generator.generate_variations(wake_word, count * 2)
+                    random.shuffle(variations)
+
+                    # Generate samples with OpenAI TTS
+                    speed_variations = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+
+                    from rich.progress import Progress
+                    with Progress(console=console) as progress:
+                        task = progress.add_task("Generating with OpenAI TTS...", total=count)
+
+                        for i in range(count):
+                            text = variations[i % len(variations)]
+                            voice = voices[i % len(voices)]
+                            speed = random.choice(speed_variations)
+                            output_path = temp_dir / f"synthetic_{i:04d}.wav"
+
+                            try:
+                                if tts.generate_speech(text, voice, output_path, self.sample_rate, speed):
+                                    raw_samples.append(output_path)
+                            except Exception as e:
+                                logger.warning(f"Failed to generate sample {i}: {e}")
+
+                            progress.update(task, advance=1)
+
+                    # Report usage stats
+                    usage_stats = tts.get_usage_stats()
+                    console.print(f"  [cyan]TTS Usage:[/cyan] {usage_stats['total_requests']:,} requests, "
+                                 f"{usage_stats['total_characters']:,} characters")
+                    console.print(f"  [cyan]Cost:[/cyan] ${usage_stats['estimated_cost_usd']:.4f}")
+
+                except Exception as e:
+                    console.print(f"[yellow]OpenAI TTS failed: {e}[/yellow]")
+                    console.print(f"[yellow]Falling back to Piper TTS[/yellow]")
+                    use_openai = False
+            else:
+                use_openai = False
+
+            # Fall back to Piper TTS if OpenAI not available or failed
+            if not use_openai:
+                if not piper or not voice_models:
+                    raise ValueError("Piper TTS instance and voice models required when OpenAI TTS not available")
+
+                console.print("[cyan]Using Piper TTS for synthetic samples[/cyan]")
+
+                # Generate samples with Piper
+                generator = SampleGenerator(
+                    piper=piper,
+                    output_dir=temp_dir,
+                    sample_rate=self.sample_rate
+                )
+
+                raw_samples = generator.generate_mixed_samples(
+                    wake_word=wake_word,
+                    voice_models=voice_models,
+                    total_count=count,
+                    prefix="synthetic"
+                )
 
             # Process generated samples into clips
             console.print("\n[bold]Processing synthetic samples...[/bold]")
@@ -438,6 +512,59 @@ class ClipGenerator:
         temp_dir = self.clips_dir / 'temp_tts'
         if temp_dir.exists():
             shutil.rmtree(temp_dir)
+
+    def cleanup_synthetic_clips(self):
+        """
+        Delete all synthetic clips but preserve real recordings.
+        Used when force mode is enabled to regenerate synthetic samples.
+        """
+        from rich.console import Console
+        console = Console()
+
+        deleted_count = 0
+
+        # Delete synthetic positive clips (prefixed with 'synth_')
+        if self.positive_dir.exists():
+            for clip_path in self.positive_dir.glob('synth_*.wav'):
+                try:
+                    clip_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete {clip_path}: {e}")
+
+        # Delete all negative clips (they're regenerated from datasets)
+        # But preserve real negative recordings (prefixed with 'real_negative_')
+        if self.negative_dir.exists():
+            for clip_path in self.negative_dir.glob('*.wav'):
+                # Skip real negative recordings
+                if clip_path.name.startswith('real_negative_'):
+                    continue
+                try:
+                    clip_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete {clip_path}: {e}")
+
+        # Delete adversarial negative clips
+        adversarial_dir = self.clips_dir / 'adversarial_negative'
+        if adversarial_dir.exists():
+            for clip_path in adversarial_dir.glob('*.wav'):
+                try:
+                    clip_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete {clip_path}: {e}")
+
+        # Clean up augmented clips
+        positive_aug_dir = self.clips_dir / 'positive_augmented'
+        if positive_aug_dir.exists():
+            shutil.rmtree(positive_aug_dir)
+            positive_aug_dir.mkdir(exist_ok=True)
+
+        if deleted_count > 0:
+            console.print(f"[yellow]Deleted {deleted_count} synthetic clips (preserving real recordings)[/yellow]")
+
+        return deleted_count
 
     def verify_clips(self) -> Dict[str, any]:
         """

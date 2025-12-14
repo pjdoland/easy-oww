@@ -45,6 +45,7 @@ setup(
         "torch>=2.0.0",
         "torchcodec>=0.1.0",
         "piper-tts>=1.3.0",
+        "openai>=1.0.0",
     ],
     extras_require={
         "gpu": [

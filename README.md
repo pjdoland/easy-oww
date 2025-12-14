@@ -7,17 +7,19 @@
 ## Features
 
 - 🎤 **Interactive Audio Recording** - Guided recording with real-time quality validation
-- 🤖 **Automatic TTS Generation** - Integrates Piper TTS for 500+ synthetic samples
+- 🤖 **Dual TTS Support** - OpenAI GPT-4o-mini-TTS (10 voices) or Piper TTS for 980+ synthetic samples
+- 🎯 **Advanced False Positive Reduction** - 5,000 adversarial negatives with 10 diverse voices
 - 📦 **Auto-Downloads Datasets** - Handles 50GB+ downloads with resume capability
 - 🎚️ **Audio Augmentation** - Applies room acoustics and noise for robustness
-- 🎯 **One-Command Training** - Simplified 3-phase training pipeline
-- ✅ **Real-Time Testing** - Live microphone detection with accuracy metrics
+- 💰 **Cost-Effective** - OpenAI TTS costs ~$0.03 per training run
 - 🔄 **Resume Capability** - Continue from last checkpoint if interrupted
-- 📊 **Rich Terminal UI** - Beautiful progress bars and status displays
+- ✅ **Real-Time Testing** - Live microphone detection with accuracy metrics
+- 📊 **Rich Terminal UI** - Beautiful progress bars and cost tracking
 
 ## Documentation
 
 - **[Installation Guide](INSTALLATION.md)** - Detailed setup including external drive support
+- **[OpenAI TTS Guide](docs/OPENAI_TTS.md)** - GPT-4o-mini-TTS integration and cost optimization
 - **[FAQ](FAQ.md)** - Frequently asked questions and troubleshooting
 - **[Audio Recording](easy_oww/audio/README.md)** - Recording system documentation
 - **[TTS Integration](easy_oww/tts/README.md)** - Text-to-speech setup and usage
@@ -99,7 +101,8 @@ easy-oww record hey_assistant --count 20
 # 6. (Optional) Record negative/adversarial samples to reduce false positives
 easy-oww record-negative hey_assistant --count 10
 
-# 7. Train the model (generates 3000+ adversarial samples automatically)
+# 7. Train the model (generates 5000 adversarial samples automatically)
+#    Optionally set OPENAI_API_KEY for higher quality TTS
 easy-oww train hey_assistant
 
 # 8. Test the trained model
@@ -154,6 +157,7 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 - Checks system requirements (Python, disk, RAM, GPU)
 - Creates workspace directory structure
 - Installs Piper TTS for synthetic sample generation
+- Optionally uses OpenAI GPT-4o-mini-TTS for premium voice quality
 
 ### 2. **Download Datasets**
 - ACAV100M features (17.5GB) - Pre-computed audio embeddings
@@ -179,12 +183,14 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 
 **Phase 1: Clip Generation**
 - Processes real recordings (normalize, resample, trim/pad)
-- Generates synthetic samples using multiple TTS voices
-- Creates text variations (punctuation, prefixes)
-- Generates 3000+ adversarial negatives (phrases similar to wake word)
-- Adds LibriSpeech speech samples for diverse negatives
+- Generates 980 synthetic samples using 10 diverse TTS voices (OpenAI or Piper)
+- Creates text variations (punctuation, speed variations)
+- Generates 5,000 adversarial negatives (phrases similar to wake word)
+- Uses 10 diverse voices for adversarial samples
+- Adds LibriSpeech speech samples (5,000+) for diverse negatives
 - Extracts negative samples from FSD50K
 - Validates all generated clips
+- Displays cost tracking for OpenAI TTS usage
 
 **Phase 2: Audio Augmentation**
 - Applies room impulse responses (RIR convolution)
