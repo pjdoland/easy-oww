@@ -107,6 +107,22 @@ install_dependencies() {
     print_success "All dependencies installed"
 }
 
+# Download OpenWakeWord models
+download_oww_models() {
+    print_header "Downloading OpenWakeWord Models"
+
+    print_info "Downloading required model files..."
+    python3 -c "from openwakeword import utils; utils.download_models(['alexa'])" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        print_success "OpenWakeWord models downloaded"
+    else
+        print_warning "Failed to download models automatically"
+        print_info "You can download them later with:"
+        echo "   python3 -c \"from openwakeword import utils; utils.download_models(['alexa'])\""
+    fi
+}
+
 # Install dev dependencies
 install_dev_dependencies() {
     print_header "Installing Development Dependencies (Optional)"
@@ -190,6 +206,7 @@ main() {
     activate_venv
     upgrade_pip
     install_dependencies
+    download_oww_models
     install_dev_dependencies
     verify_installation
     show_next_steps
