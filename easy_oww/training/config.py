@@ -31,7 +31,7 @@ class TrainingConfig:
 
     # Audio settings
     sample_rate: int = 16000
-    clip_duration_ms: int = 3000  # Target clip duration (3 seconds)
+    clip_duration_ms: Optional[int] = None  # Target clip duration in ms (None = auto-detect)
 
     # Augmentation settings
     use_augmentation: bool = True

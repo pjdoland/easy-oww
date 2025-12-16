@@ -199,11 +199,15 @@ class TrainingOrchestrator:
         # Check for negative recordings directory
         negative_recordings_dir = self.project_path / 'recordings_negative'
 
+        # Use a reasonable default for clip generation if auto-detect is enabled
+        # Training will determine the optimal length later
+        clip_duration_for_generation = config.clip_duration_ms if config.clip_duration_ms else 2000
+
         clip_generator = ClipGenerator(
             recordings_dir=Path(config.recordings_dir),
             clips_dir=Path(config.clips_dir),
             sample_rate=config.sample_rate,
-            target_duration_ms=config.clip_duration_ms,
+            target_duration_ms=clip_duration_for_generation,
             negative_recordings_dir=negative_recordings_dir if negative_recordings_dir.exists() else None
         )
 
@@ -432,8 +436,10 @@ class TrainingOrchestrator:
 
         # Train full model
         try:
-            # Calculate clip length in samples
-            clip_length_samples = int((config.clip_duration_ms / 1000.0) * config.sample_rate)
+            # Calculate clip length in samples (None = auto-detect optimal length)
+            clip_length_samples = None
+            if config.clip_duration_ms:
+                clip_length_samples = int((config.clip_duration_ms / 1000.0) * config.sample_rate)
 
             model_path = train_full_model(
                 project_name=config.project_name,
@@ -448,7 +454,7 @@ class TrainingOrchestrator:
                 augmentation_rounds=2,
                 batch_size=128,
                 max_negative_weight=10,  # Balance: not too high (collapse) or too low (false positives)
-                clip_length=clip_length_samples,  # Pass configured clip length
+                clip_length=clip_length_samples,  # None = auto-detect, or use configured length
                 sample_rate=config.sample_rate,
                 force=force
             )
