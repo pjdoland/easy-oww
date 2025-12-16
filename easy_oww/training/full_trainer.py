@@ -407,18 +407,36 @@ class FullModelTrainer:
         adversarial_dir = self.clips_dir / 'adversarial_negative'
         adversarial_dir.mkdir(exist_ok=True)
 
-        # Check if we already have adversarial samples
-        # Increased from 500 to 2500 to match 5000 target (50% threshold)
-        existing = list(adversarial_dir.glob('*.wav'))
-        if len(existing) >= 2500:
-            console.print(f"  Using {len(existing)} existing adversarial samples")
+        # Check for existing adversarial samples and resume if needed
+        target_count = 5000
+        existing = list(adversarial_dir.glob('adversarial_*.wav'))
+        existing_count = len(existing)
+
+        if existing_count >= target_count:
+            console.print(f"  Using {existing_count} existing adversarial samples (target: {target_count})")
             return [str(p) for p in existing]
+
+        if existing_count > 0:
+            console.print(f"  Found {existing_count} existing adversarial samples, generating {target_count - existing_count} more...")
+
+        # Find the starting index (highest existing number + 1)
+        start_index = 0
+        if existing:
+            import re
+            numbers = []
+            for clip in existing:
+                match = re.search(r'adversarial_(\d+)\.wav', clip.name)
+                if match:
+                    numbers.append(int(match.group(1)))
+            if numbers:
+                start_index = max(numbers) + 1
 
         # Generate adversarial texts (phrases similar to wake word)
         console.print(f"  Generating adversarial phrases for '{self.wake_word}'...")
 
-        # Increased from 3000 to 5000 for better false positive reduction
-        adversarial_texts = self._generate_simple_adversarial_texts(self.wake_word, n=5000)
+        # Generate only the number of texts we need
+        clips_to_generate = target_count - existing_count
+        adversarial_texts = self._generate_simple_adversarial_texts(self.wake_word, n=clips_to_generate)
         console.print(f"  Generated {len(adversarial_texts)} unique adversarial phrases")
 
         # Check for OpenAI API key
@@ -454,8 +472,8 @@ class FullModelTrainer:
         # Speed variations for diversity
         speed_variations = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
 
-        # Generate clips
-        adversarial_clips = []
+        # Generate clips (start with existing)
+        adversarial_clips = [str(p) for p in existing]
         with Progress(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
@@ -472,7 +490,8 @@ class FullModelTrainer:
                     # Random speed variation
                     speed = random.choice(speed_variations)
 
-                    output_path = adversarial_dir / f"adversarial_{i:05d}.wav"
+                    # Use correct index for resuming
+                    output_path = adversarial_dir / f"adversarial_{start_index + i:05d}.wav"
 
                     # Generate speech with OpenAI TTS
                     success = tts.generate_speech(
@@ -489,11 +508,12 @@ class FullModelTrainer:
                     progress.update(task, advance=1)
 
                 except Exception as e:
-                    logger.warning(f"Failed to generate adversarial clip {i}: {e}")
+                    logger.warning(f"Failed to generate adversarial clip {start_index + i}: {e}")
 
         # Report final costs
         usage_stats = tts.get_usage_stats()
-        console.print(f"  [green]✓[/green] Generated {len(adversarial_clips)} adversarial samples")
+        new_clips = len(adversarial_clips) - existing_count
+        console.print(f"  [green]✓[/green] Total {len(adversarial_clips)} adversarial samples ({existing_count} existing + {new_clips} new)")
         console.print(f"  [cyan]TTS Usage:[/cyan] {usage_stats['total_requests']:,} requests, "
                      f"{usage_stats['total_characters']:,} characters")
         console.print(f"  [cyan]Total Cost:[/cyan] ${usage_stats['estimated_cost_usd']:.4f}")
@@ -503,19 +523,39 @@ class FullModelTrainer:
     def _generate_adversarial_negatives_piper(self):
         """Fallback: Generate adversarial negative samples using Piper TTS"""
         from easy_oww.tts import PiperTTS
+        import random
 
         adversarial_dir = self.clips_dir / 'adversarial_negative'
         adversarial_dir.mkdir(exist_ok=True)
 
-        # Check if we already have adversarial samples
-        existing = list(adversarial_dir.glob('*.wav'))
-        if len(existing) >= 2500:
-            console.print(f"  Using {len(existing)} existing adversarial samples")
+        # Check for existing adversarial samples and resume if needed
+        target_count = 5000
+        existing = list(adversarial_dir.glob('adversarial_*.wav'))
+        existing_count = len(existing)
+
+        if existing_count >= target_count:
+            console.print(f"  Using {existing_count} existing adversarial samples (target: {target_count})")
             return [str(p) for p in existing]
+
+        if existing_count > 0:
+            console.print(f"  Found {existing_count} existing adversarial samples, generating {target_count - existing_count} more...")
+
+        # Find the starting index (highest existing number + 1)
+        start_index = 0
+        if existing:
+            import re
+            numbers = []
+            for clip in existing:
+                match = re.search(r'adversarial_(\d+)\.wav', clip.name)
+                if match:
+                    numbers.append(int(match.group(1)))
+            if numbers:
+                start_index = max(numbers) + 1
 
         # Generate adversarial texts
         console.print(f"  Generating adversarial phrases for '{self.wake_word}'...")
-        adversarial_texts = self._generate_simple_adversarial_texts(self.wake_word, n=5000)
+        clips_to_generate = target_count - existing_count
+        adversarial_texts = self._generate_simple_adversarial_texts(self.wake_word, n=clips_to_generate)
         console.print(f"  Generated {len(adversarial_texts)} unique adversarial phrases")
 
         # Generate audio using Piper TTS
@@ -553,8 +593,8 @@ class FullModelTrainer:
         if len(voices) < 5:
             console.print(f"  [dim]Tip: Download more voices with 'easy-oww download-voices' for better variety[/dim]")
 
-        # Generate clips
-        adversarial_clips = []
+        # Generate clips (start with existing)
+        adversarial_clips = [str(p) for p in existing]
         with Progress(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
@@ -566,7 +606,8 @@ class FullModelTrainer:
             for i, text in enumerate(adversarial_texts):
                 try:
                     voice = voices[i % len(voices)]
-                    output_path = adversarial_dir / f"adversarial_{i:05d}.wav"
+                    # Use correct index for resuming
+                    output_path = adversarial_dir / f"adversarial_{start_index + i:05d}.wav"
 
                     # generate_speech writes directly to file and returns boolean
                     success = piper.generate_speech(text, voice, output_path, sample_rate=16000)
@@ -575,9 +616,10 @@ class FullModelTrainer:
 
                     progress.update(task, advance=1)
                 except Exception as e:
-                    logger.warning(f"Failed to generate adversarial clip {i}: {e}")
+                    logger.warning(f"Failed to generate adversarial clip {start_index + i}: {e}")
 
-        console.print(f"  [green]✓[/green] Generated {len(adversarial_clips)} adversarial samples")
+        new_clips = len(adversarial_clips) - existing_count
+        console.print(f"  [green]✓[/green] Total {len(adversarial_clips)} adversarial samples ({existing_count} existing + {new_clips} new)")
         return adversarial_clips
 
     def _determine_clip_length(self, positive_clips):

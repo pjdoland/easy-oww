@@ -187,12 +187,36 @@ class ClipGenerator:
 
         console.print(f"\n[bold]Generating {count} synthetic clips...[/bold]")
 
+        # Check for existing synthetic clips and resume if needed
+        existing_clips = list(self.positive_dir.glob('synth_*.wav'))
+        existing_count = len(existing_clips)
+
+        if existing_count >= count:
+            console.print(f"[green]✓[/green] Already have {existing_count} synthetic clips (target: {count})")
+            return existing_clips[:count]
+
+        if existing_count > 0:
+            console.print(f"[cyan]Found {existing_count} existing synthetic clips, generating {count - existing_count} more...[/cyan]")
+
+        # Find the starting index (highest existing number + 1)
+        start_index = 0
+        if existing_clips:
+            import re
+            numbers = []
+            for clip in existing_clips:
+                match = re.search(r'synth_(\d+)\.wav', clip.name)
+                if match:
+                    numbers.append(int(match.group(1)))
+            if numbers:
+                start_index = max(numbers) + 1
+
         # Create temporary directory for raw TTS output
         temp_dir = self.clips_dir / 'temp_tts'
         temp_dir.mkdir(exist_ok=True)
 
         try:
             raw_samples = []
+            clips_to_generate = count - existing_count
 
             # Try to use OpenAI TTS first if requested
             if use_openai and os.environ.get('OPENAI_API_KEY'):
@@ -204,7 +228,7 @@ class ClipGenerator:
 
                     # Estimate cost
                     avg_chars_per_sample = len(wake_word) * 1.5  # Account for variations
-                    total_chars = int(avg_chars_per_sample * count)
+                    total_chars = int(avg_chars_per_sample * clips_to_generate)
                     estimated_cost = tts.estimate_cost(total_chars)
                     console.print(f"  Estimated cost: ${estimated_cost:.4f} for {total_chars:,} characters")
 
@@ -216,7 +240,7 @@ class ClipGenerator:
                         sample_rate=self.sample_rate
                     )
 
-                    variations = generator.generate_variations(wake_word, count * 2)
+                    variations = generator.generate_variations(wake_word, clips_to_generate * 2)
                     random.shuffle(variations)
 
                     # Generate samples with OpenAI TTS
@@ -224,13 +248,13 @@ class ClipGenerator:
 
                     from rich.progress import Progress
                     with Progress(console=console) as progress:
-                        task = progress.add_task("Generating with OpenAI TTS...", total=count)
+                        task = progress.add_task("Generating with OpenAI TTS...", total=clips_to_generate)
 
-                        for i in range(count):
+                        for i in range(clips_to_generate):
                             text = variations[i % len(variations)]
                             voice = voices[i % len(voices)]
                             speed = random.choice(speed_variations)
-                            output_path = temp_dir / f"synthetic_{i:04d}.wav"
+                            output_path = temp_dir / f"synthetic_{start_index + i:04d}.wav"
 
                             try:
                                 if tts.generate_speech(text, voice, output_path, self.sample_rate, speed):
@@ -270,13 +294,13 @@ class ClipGenerator:
                 raw_samples = generator.generate_mixed_samples(
                     wake_word=wake_word,
                     voice_models=voice_models,
-                    total_count=count,
-                    prefix="synthetic"
+                    total_count=clips_to_generate,
+                    prefix=f"synthetic_{start_index:04d}"
                 )
 
             # Process generated samples into clips
             console.print("\n[bold]Processing synthetic samples...[/bold]")
-            processed_clips = []
+            processed_clips = list(existing_clips)  # Start with existing clips
 
             with Progress(console=console) as progress:
                 task = progress.add_task("Processing...", total=len(raw_samples))
@@ -301,8 +325,8 @@ class ClipGenerator:
                         # Preserve content for positive clips (never cut off wake word)
                         audio = self._prepare_clip(audio, preserve_content=True)
 
-                        # Save to positive clips
-                        output_path = self.positive_dir / f"synth_{i:04d}.wav"
+                        # Save to positive clips with correct index
+                        output_path = self.positive_dir / f"synth_{start_index + i:04d}.wav"
                         wavfile.write(str(output_path), self.sample_rate, audio)
 
                         processed_clips.append(output_path)
@@ -312,7 +336,7 @@ class ClipGenerator:
 
                     progress.update(task, advance=1)
 
-            console.print(f"[green]✓[/green] Generated {len(processed_clips)} synthetic clips")
+            console.print(f"[green]✓[/green] Total {len(processed_clips)} synthetic clips ({existing_count} existing + {len(processed_clips) - existing_count} new)")
             return processed_clips
 
         finally:
