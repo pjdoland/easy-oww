@@ -107,6 +107,37 @@ install_dependencies() {
     print_success "All dependencies installed"
 }
 
+# Fix entry point script for editable install
+fix_entry_point() {
+    print_info "Fixing entry point script..."
+
+    SCRIPT_PATH="venv/bin/easy-oww"
+    PYTHON_PATH="$(pwd)/venv/bin/python3"
+
+    if [ -f "$SCRIPT_PATH" ]; then
+        cat > "$SCRIPT_PATH" << ENTRY
+#!${PYTHON_PATH}
+# -*- coding: utf-8 -*-
+import re
+import sys
+import os
+
+# Add the project root to sys.path for editable install
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from easy_oww.cli.main import cli
+
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\\\\.pyw|\\\\.exe)?$', '', sys.argv[0])
+    sys.exit(cli())
+ENTRY
+        chmod +x "$SCRIPT_PATH"
+        print_success "Entry point fixed"
+    fi
+}
+
 # Download OpenWakeWord models
 download_oww_models() {
     print_header "Downloading OpenWakeWord Models"
@@ -206,6 +237,7 @@ main() {
     activate_venv
     upgrade_pip
     install_dependencies
+    fix_entry_point
     download_oww_models
     install_dev_dependencies
     verify_installation
