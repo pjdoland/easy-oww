@@ -249,16 +249,95 @@ class FullModelTrainer:
 
         return [str(p) for p in positive_clips], [str(n) for n in negative_clips]
 
+    def _is_valid_adversarial(self, text, wake_word):
+        """
+        Check if adversarial text is valid (doesn't contain wake word or homophones).
+
+        Args:
+            text: Generated adversarial text
+            wake_word: The wake word to check against
+
+        Returns:
+            True if valid (doesn't contain wake word/homophones), False otherwise
+        """
+        text_lower = text.lower().strip()
+        wake_lower = wake_word.lower().strip()
+
+        # Check 1: Exact match
+        if text_lower == wake_lower:
+            return False
+
+        # Check 2: Wake word is substring
+        if wake_lower in text_lower:
+            return False
+
+        # Check 3: Text is substring of wake word (too similar)
+        if text_lower in wake_lower and len(text_lower) > len(wake_lower) * 0.8:
+            return False
+
+        # Check 4: Phonetic similarity using Double Metaphone algorithm
+        try:
+            # Try to import metaphone library for phonetic matching
+            try:
+                from metaphone import doublemetaphone
+            except ImportError:
+                # If metaphone not available, use basic string similarity
+                # This is a fallback - metaphone is better for homophones
+                import difflib
+                similarity = difflib.SequenceMatcher(None, text_lower, wake_lower).ratio()
+                return similarity < 0.85  # Less than 85% similar
+
+            # Get phonetic codes for both phrases
+            wake_words = wake_lower.split()
+            text_words = text_lower.split()
+
+            # If text contains all wake word phonemes in order, reject it
+            wake_phonetic = [doublemetaphone(w) for w in wake_words]
+            text_phonetic = [doublemetaphone(w) for w in text_words]
+
+            # Check if wake word phonetic pattern exists in text
+            wake_phonetic_codes = [(p[0] or p[1]) for p in wake_phonetic if (p[0] or p[1])]
+            text_phonetic_codes = [(p[0] or p[1]) for p in text_phonetic if (p[0] or p[1])]
+
+            # If all wake word phonemes appear in sequence in text, it's too similar
+            if len(wake_phonetic_codes) > 0 and len(text_phonetic_codes) >= len(wake_phonetic_codes):
+                wake_pattern = ' '.join(wake_phonetic_codes)
+                text_pattern = ' '.join(text_phonetic_codes)
+                if wake_pattern in text_pattern:
+                    return False
+
+            # Check for exact phonetic match of the complete phrase
+            if text_phonetic_codes == wake_phonetic_codes:
+                return False
+
+        except Exception as e:
+            # If phonetic checking fails, use basic string comparison
+            logger.debug(f"Phonetic check failed: {e}, using basic similarity")
+            import difflib
+            similarity = difflib.SequenceMatcher(None, text_lower, wake_lower).ratio()
+            if similarity > 0.85:
+                return False
+
+        return True
+
     def _generate_simple_adversarial_texts(self, wake_word, n=3000):
         """
         Generate adversarial texts using advanced text manipulation.
         These are phrases that sound similar to the wake word but should NOT trigger it.
         This replaces the buggy OpenWakeWord generate_adversarial_texts function.
+
+        Includes validation to prevent adversarial texts from containing the wake word
+        or homophones that could confuse the model.
         """
         import random
 
         adversarial_texts = set()  # Use set to avoid duplicates
         words = wake_word.lower().split()
+
+        # Track rejected texts for debugging
+        rejected_count = 0
+        max_attempts = n * 10  # Prevent infinite loop
+        attempts = 0
 
         # Common filler words and phrases
         fillers = ['um', 'uh', 'well', 'so', 'like', 'you know', 'I mean', 'actually',
@@ -282,7 +361,10 @@ class FullModelTrainer:
         sentence_enders = ['please', 'thanks', 'now', 'today', 'tomorrow', 'yesterday',
                           'right now', 'later', 'soon', 'already', 'yet', 'still']
 
-        while len(adversarial_texts) < n:
+        # Generate more than needed, then filter
+        target_generation = int(n * 1.5)  # Generate 50% extra to account for filtering
+
+        while len(adversarial_texts) < target_generation:
             choice = random.random()
 
             if choice < 0.25:  # Partial phrases - missing words (25%)
@@ -396,7 +478,23 @@ class FullModelTrainer:
                         adversarial_texts.add(word + 's')  # Plural
                         adversarial_texts.add(word + 'ing')  # Gerund
 
-        return list(adversarial_texts)[:n]
+        # Filter out any texts that contain the wake word or homophones
+        console.print(f"  Validating {len(adversarial_texts)} generated phrases...")
+        valid_texts = [text for text in adversarial_texts if self._is_valid_adversarial(text, wake_word)]
+        rejected_count = len(adversarial_texts) - len(valid_texts)
+
+        if rejected_count > 0:
+            console.print(f"  [yellow]Filtered out {rejected_count} phrases containing wake word/homophones[/yellow]")
+
+        # If we don't have enough after filtering, generate more
+        if len(valid_texts) < n:
+            console.print(f"  [yellow]Need {n - len(valid_texts)} more phrases, regenerating...[/yellow]")
+            # Recursively generate more (this is rare and will converge)
+            additional = self._generate_simple_adversarial_texts(wake_word, n - len(valid_texts))
+            valid_texts.extend(additional)
+
+        console.print(f"  [green]✓[/green] Generated {len(valid_texts)} valid adversarial phrases")
+        return list(valid_texts)[:n]
 
     def _generate_adversarial_negatives(self):
         """Generate adversarial negative samples using OpenAI TTS"""

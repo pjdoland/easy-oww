@@ -25,6 +25,7 @@ torchaudio>=2.0.0  # Audio I/O and processing with PyTorch
 torchinfo>=1.8.0  # Required for OpenWakeWord full model training
 torchmetrics>=0.11.0  # Required for OpenWakeWord full model training
 pronouncing>=0.2.0  # Required for adversarial text generation
+Metaphone>=0.6  # Phonetic algorithm for homophone detection in adversarial validation
 audiomentations>=0.30.0  # Required for audio augmentation
 torch-audiomentations>=0.11.0,<0.12.0  # Pin to <0.12 to avoid breaking output_type changes (OpenWakeWord compatibility)
 speechbrain>=1.0.0,<2.0.0  # Speech processing toolkit (upgrade for torchaudio 2.x compatibility)

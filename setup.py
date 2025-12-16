@@ -46,6 +46,7 @@ setup(
         "torchcodec>=0.1.0",
         "piper-tts>=1.3.0",
         "openai>=1.0.0",
+        "Metaphone>=0.6",
     ],
     extras_require={
         "gpu": [
