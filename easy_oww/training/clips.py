@@ -243,26 +243,41 @@ class ClipGenerator:
                     variations = generator.generate_variations(wake_word, clips_to_generate * 2)
                     random.shuffle(variations)
 
-                    # Generate samples with OpenAI TTS
+                    # Generate samples with OpenAI TTS in parallel
                     speed_variations = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
 
+                    from concurrent.futures import ThreadPoolExecutor, as_completed
                     from rich.progress import Progress
+
+                    # Function to generate a single clip
+                    def generate_clip(i):
+                        text = variations[i % len(variations)]
+                        voice = voices[i % len(voices)]
+                        speed = random.choice(speed_variations)
+                        output_path = temp_dir / f"synthetic_{start_index + i:04d}.wav"
+
+                        try:
+                            if tts.generate_speech(text, voice, output_path, self.sample_rate, speed):
+                                return output_path
+                        except Exception as e:
+                            logger.warning(f"Failed to generate sample {i}: {e}")
+                        return None
+
+                    # Use ThreadPoolExecutor for parallel I/O-bound TTS calls
+                    # Limit to 10 workers to avoid overwhelming the API
                     with Progress(console=console) as progress:
                         task = progress.add_task("Generating with OpenAI TTS...", total=clips_to_generate)
 
-                        for i in range(clips_to_generate):
-                            text = variations[i % len(variations)]
-                            voice = voices[i % len(voices)]
-                            speed = random.choice(speed_variations)
-                            output_path = temp_dir / f"synthetic_{start_index + i:04d}.wav"
+                        with ThreadPoolExecutor(max_workers=10) as executor:
+                            # Submit all tasks
+                            futures = [executor.submit(generate_clip, i) for i in range(clips_to_generate)]
 
-                            try:
-                                if tts.generate_speech(text, voice, output_path, self.sample_rate, speed):
-                                    raw_samples.append(output_path)
-                            except Exception as e:
-                                logger.warning(f"Failed to generate sample {i}: {e}")
-
-                            progress.update(task, advance=1)
+                            # Collect results as they complete
+                            for future in as_completed(futures):
+                                result = future.result()
+                                if result is not None:
+                                    raw_samples.append(result)
+                                progress.update(task, advance=1)
 
                     # Report usage stats
                     usage_stats = tts.get_usage_stats()

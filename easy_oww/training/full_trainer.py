@@ -570,8 +570,38 @@ class FullModelTrainer:
         # Speed variations for diversity
         speed_variations = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
 
-        # Generate clips (start with existing)
+        # Generate clips in parallel (start with existing)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         adversarial_clips = [str(p) for p in existing]
+
+        # Function to generate a single adversarial clip
+        def generate_adversarial_clip(i, text):
+            try:
+                # Rotate through voices for maximum diversity
+                voice = voices[i % len(voices)]
+
+                # Random speed variation
+                speed = random.choice(speed_variations)
+
+                # Use correct index for resuming
+                output_path = adversarial_dir / f"adversarial_{start_index + i:05d}.wav"
+
+                # Generate speech with OpenAI TTS
+                success = tts.generate_speech(
+                    text=text,
+                    voice=voice,
+                    output_path=output_path,
+                    sample_rate=16000,
+                    speed=speed
+                )
+
+                if success:
+                    return str(output_path)
+            except Exception as e:
+                logger.warning(f"Failed to generate adversarial clip {start_index + i}: {e}")
+            return None
+
+        # Use ThreadPoolExecutor for parallel TTS generation
         with Progress(
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
@@ -580,33 +610,20 @@ class FullModelTrainer:
         ) as progress:
             task = progress.add_task(f"Generating adversarial clips", total=len(adversarial_texts))
 
-            for i, text in enumerate(adversarial_texts):
-                try:
-                    # Rotate through voices for maximum diversity
-                    voice = voices[i % len(voices)]
+            # Limit to 10 workers to avoid overwhelming the API
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                # Submit all tasks
+                futures = [
+                    executor.submit(generate_adversarial_clip, i, text)
+                    for i, text in enumerate(adversarial_texts)
+                ]
 
-                    # Random speed variation
-                    speed = random.choice(speed_variations)
-
-                    # Use correct index for resuming
-                    output_path = adversarial_dir / f"adversarial_{start_index + i:05d}.wav"
-
-                    # Generate speech with OpenAI TTS
-                    success = tts.generate_speech(
-                        text=text,
-                        voice=voice,
-                        output_path=output_path,
-                        sample_rate=16000,
-                        speed=speed
-                    )
-
-                    if success:
-                        adversarial_clips.append(str(output_path))
-
+                # Collect results as they complete
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result is not None:
+                        adversarial_clips.append(result)
                     progress.update(task, advance=1)
-
-                except Exception as e:
-                    logger.warning(f"Failed to generate adversarial clip {start_index + i}: {e}")
 
         # Report final costs
         usage_stats = tts.get_usage_stats()
