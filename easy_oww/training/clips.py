@@ -264,11 +264,11 @@ class ClipGenerator:
                         return None
 
                     # Use ThreadPoolExecutor for parallel I/O-bound TTS calls
-                    # Limit to 10 workers to avoid overwhelming the API
+                    # Limit to 5 workers to respect API rate limits (500 RPM)
                     with Progress(console=console) as progress:
                         task = progress.add_task("Generating with OpenAI TTS...", total=clips_to_generate)
 
-                        with ThreadPoolExecutor(max_workers=10) as executor:
+                        with ThreadPoolExecutor(max_workers=5) as executor:
                             # Submit all tasks
                             futures = [executor.submit(generate_clip, i) for i in range(clips_to_generate)]
 

@@ -610,8 +610,8 @@ class FullModelTrainer:
         ) as progress:
             task = progress.add_task(f"Generating adversarial clips", total=len(adversarial_texts))
 
-            # Limit to 10 workers to avoid overwhelming the API
-            with ThreadPoolExecutor(max_workers=10) as executor:
+            # Limit to 5 workers to respect API rate limits (500 RPM)
+            with ThreadPoolExecutor(max_workers=5) as executor:
                 # Submit all tasks
                 futures = [
                     executor.submit(generate_adversarial_clip, i, text)

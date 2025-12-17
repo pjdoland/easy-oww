@@ -106,6 +106,7 @@ class OpenAITTS:
             import io
             import wave
             import numpy as np
+            import time
 
             client = OpenAI(api_key=self.api_key)
 
@@ -113,15 +114,40 @@ class OpenAITTS:
             self.total_characters += len(text)
             self.total_requests += 1
 
-            # Generate speech using PCM format to avoid pydub dependency
+            # Generate speech using PCM format with retry logic for rate limits
             # PCM gives us raw audio data that we can process directly
-            response = client.audio.speech.create(
-                model="gpt-4o-mini-tts",  # Most cost-effective model
-                voice=voice,
-                input=text,
-                speed=speed,
-                response_format="pcm"  # Raw PCM audio data
-            )
+            max_retries = 5
+            base_delay = 0.5  # Start with 500ms delay
+
+            for attempt in range(max_retries):
+                try:
+                    response = client.audio.speech.create(
+                        model="gpt-4o-mini-tts",  # Most cost-effective model
+                        voice=voice,
+                        input=text,
+                        speed=speed,
+                        response_format="pcm"  # Raw PCM audio data
+                    )
+                    break  # Success, exit retry loop
+
+                except Exception as e:
+                    error_str = str(e)
+
+                    # Check if it's a rate limit error (429)
+                    if "429" in error_str or "rate_limit" in error_str.lower():
+                        if attempt < max_retries - 1:
+                            # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
+                            delay = base_delay * (2 ** attempt)
+                            from easy_oww.utils.logger import get_logger
+                            logger = get_logger()
+                            logger.debug(f"Rate limit hit, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
+                            time.sleep(delay)
+                        else:
+                            # Final attempt failed
+                            raise RuntimeError(f"Speech generation failed after {max_retries} attempts: {e}")
+                    else:
+                        # Non-rate-limit error, don't retry
+                        raise RuntimeError(f"Speech generation failed: {e}")
 
             # Get PCM audio data
             # OpenAI returns 24kHz, 16-bit, mono PCM by default
