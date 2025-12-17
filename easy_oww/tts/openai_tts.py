@@ -138,8 +138,6 @@ class OpenAITTS:
                         if attempt < max_retries - 1:
                             # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
                             delay = base_delay * (2 ** attempt)
-                            from easy_oww.utils.logger import get_logger
-                            logger = get_logger()
                             logger.debug(f"Rate limit hit, retrying in {delay}s (attempt {attempt + 1}/{max_retries})")
                             time.sleep(delay)
                         else:
