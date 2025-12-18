@@ -8,11 +8,13 @@
 
 - 🎤 **Interactive Audio Recording** - Guided recording with real-time quality validation
 - 🤖 **Dual TTS Support** - OpenAI GPT-4o-mini-TTS (10 voices) or Piper TTS for 980+ synthetic samples
-- 🎯 **Advanced False Positive Reduction** - 5,000 adversarial negatives with 10 diverse voices
+- 🎯 **Advanced False Positive Reduction** - 6,000 adversarial negatives with 10 diverse voices & homophone validation
+- ⚡ **Parallel Generation** - 5 concurrent workers for ~5x faster TTS generation
+- 🔄 **Smart Rate Limiting** - Automatic retry with exponential backoff for API limits
 - 📦 **Auto-Downloads Datasets** - Handles 50GB+ downloads with resume capability
 - 🎚️ **Audio Augmentation** - Applies room acoustics and noise for robustness
-- 💰 **Cost-Effective** - OpenAI TTS costs ~$0.03 per training run
-- 🔄 **Resume Capability** - Continue from last checkpoint if interrupted
+- 💰 **Cost-Effective** - OpenAI TTS costs ~$0.035 per training run
+- 🔁 **Resume Capability** - Continue from last checkpoint if interrupted
 - ✅ **Real-Time Testing** - Live microphone detection with accuracy metrics
 - 📊 **Rich Terminal UI** - Beautiful progress bars and cost tracking
 
@@ -101,7 +103,7 @@ easy-oww record hey_assistant --count 20
 # 6. (Optional) Record negative/adversarial samples to reduce false positives
 easy-oww record-negative hey_assistant --count 10
 
-# 7. Train the model (generates 5000 adversarial samples automatically)
+# 7. Train the model (generates 6000 adversarial samples automatically)
 #    Optionally set OPENAI_API_KEY for higher quality TTS
 easy-oww train hey_assistant
 
@@ -185,7 +187,7 @@ You can run easy-oww entirely from an external drive (USB-C SSD recommended). Se
 - Processes real recordings (normalize, resample, trim/pad)
 - Generates 980 synthetic samples using 10 diverse TTS voices (OpenAI or Piper)
 - Creates text variations (punctuation, speed variations)
-- Generates 5,000 adversarial negatives (phrases similar to wake word)
+- Generates 6,000 adversarial negatives (phrases similar to wake word)
 - Uses 10 diverse voices for adversarial samples
 - Adds LibriSpeech speech samples (5,000+) for diverse negatives
 - Extracts negative samples from FSD50K
@@ -441,7 +443,7 @@ target_samples: 500
 synthetic_samples: 480
 max_steps: 5000
 voices: 2
-clip_duration_ms: 3000  # 3 seconds
+# clip_duration_ms: null  # Auto-detect optimal length (recommended)
 ```
 
 **For Production:**
@@ -450,7 +452,7 @@ target_samples: 2000
 synthetic_samples: 1950
 max_steps: 15000
 voices: 3+
-clip_duration_ms: 3000  # 3 seconds
+# clip_duration_ms: null  # Auto-detect optimal length (recommended)
 ```
 
 ### Voice Selection
@@ -511,7 +513,7 @@ learning_rate: 0.001
 
 # Audio settings
 sample_rate: 16000
-clip_duration_ms: 1000
+clip_duration_ms: null  # Auto-detect optimal length (default)
 
 # Augmentation
 use_augmentation: true

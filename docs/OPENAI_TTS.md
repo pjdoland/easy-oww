@@ -12,31 +12,23 @@ The integration automatically uses OpenAI TTS when available, with graceful fall
 ## Features
 
 - **10 diverse voices**: alloy, nova, echo, shimmer, onyx, fable, ash, ballad, coral, sage, verse
-- **Increased adversarial negatives**: 5000 samples (up from 3000) for better false positive reduction
+- **Increased adversarial negatives**: 6000 samples (up from 3000) for better false positive reduction
+- **Parallel generation**: 5 concurrent workers for ~5x faster generation
+- **Rate limit handling**: Automatic retry with exponential backoff for API rate limits
 - **Cost tracking**: Real-time cost estimation and reporting
 - **Speed variations**: 0.8x to 1.3x for natural diversity
 - **Automatic fallback**: Seamlessly falls back to Piper TTS if unavailable
+- **Wake word validation**: Adversarial negatives are validated to prevent homophones
 
 ## Setup
 
 ### 1. Install Dependencies
 
 ```bash
-pip install openai>=1.0.0 pydub>=0.25.0
+pip install openai>=1.0.0
 ```
 
-**Note**: `pydub` requires `ffmpeg` to be installed on your system:
-
-```bash
-# macOS
-brew install ffmpeg
-
-# Ubuntu/Debian
-sudo apt-get install ffmpeg
-
-# Windows
-# Download from https://ffmpeg.org/download.html
-```
+**Note**: No additional dependencies required! Easy-OWW uses OpenAI's PCM audio format directly, avoiding the need for `pydub` or `ffmpeg`.
 
 ### 2. Set API Key
 
@@ -80,12 +72,12 @@ For a standard wake word model:
 | Component | Samples | Characters | Cost |
 |-----------|---------|------------|------|
 | Positive samples (synthetic) | 980 | ~60,000 | $0.006 |
-| Adversarial negatives | 5,000 | ~240,000 | $0.024 |
-| **Total** | **5,980** | **~300,000** | **$0.030** |
+| Adversarial negatives | 6,000 | ~288,000 | $0.029 |
+| **Total** | **6,980** | **~348,000** | **$0.035** |
 
-**Total cost per training run: ~$0.03** (well under the $1.00 budget)
+**Total cost per training run: ~$0.035** (well under the $1.00 budget)
 
-Even with 10,000 adversarial negatives, the cost would only be ~$0.06 per training run.
+Even with 10,000 adversarial negatives, the cost would only be ~$0.058 per training run.
 
 ## Usage
 
@@ -130,15 +122,17 @@ When training with OpenAI TTS, you'll see detailed cost tracking:
 
 ```
 Generating adversarial phrases for 'hey assistant'...
-  Generated 5000 unique adversarial phrases
+  Validating 9000 generated phrases...
+  Filtered out 142 phrases containing wake word/homophones
+  ✓ Generated 6000 valid adversarial phrases
   Using 10 OpenAI voices for TTS synthesis
-  Estimated cost: $0.0240 for 240,000 characters
+  Estimated cost: $0.0288 for 288,000 characters
   Synthesizing adversarial samples with OpenAI GPT-4o-mini-TTS...
-  This will create 5000 audio clips (may take 15-20 minutes)
-  [████████████████████████████████████████] 5000/5000
-  ✓ Generated 5000 adversarial samples
-  TTS Usage: 5,000 requests, 240,234 characters
-  Total Cost: $0.0240
+  This will create 6000 audio clips (may take 8-10 minutes)
+  [████████████████████████████████████████] 6000/6000
+  ✓ Generated 6000 adversarial samples
+  TTS Usage: 6,000 requests, 288,234 characters
+  Total Cost: $0.0288
 ```
 
 ## Benefits Over Piper TTS
@@ -149,9 +143,11 @@ Generating adversarial phrases for 'hey assistant'...
 | Voice Quality | Very high (human-like) | Good (synthetic) |
 | Naturalness | Excellent | Good |
 | Setup Complexity | API key only | Voice model downloads |
-| Cost | ~$0.03/training | Free |
-| Speed | Moderate (API calls) | Fast (local) |
+| Cost | ~$0.035/training | Free |
+| Speed | Fast (parallel, 5 workers) | Fast (local) |
+| Generation Time | ~8-10 min for 6000 clips | ~20-30 min for 6000 clips |
 | Offline Support | No | Yes |
+| Rate Limiting | Automatic retry & backoff | N/A |
 
 ## Troubleshooting
 
@@ -162,20 +158,17 @@ Set your API key:
 export OPENAI_API_KEY='your-key'
 ```
 
-### Error: "pydub package required"
-
-Install pydub and ffmpeg:
-```bash
-pip install pydub
-brew install ffmpeg  # macOS
-```
-
 ### Error: "OpenAI API rate limit exceeded"
 
-The system generates samples sequentially to respect rate limits. If you hit limits:
-- Wait a few minutes and retry
-- Consider using Piper TTS as fallback
-- Contact OpenAI to increase your rate limits
+The system automatically handles rate limits with exponential backoff retry logic:
+- Automatically retries with delays: 0.5s, 1s, 2s, 4s, 8s
+- Uses 5 concurrent workers to stay under 500 RPM limit
+- Smooths out request bursts
+
+If you still hit limits:
+- The system will automatically retry and succeed
+- Reduce max_workers from 5 to 3 in the code if needed
+- Consider using Piper TTS as fallback for very large batch jobs
 
 ### Cost Concerns
 
@@ -200,14 +193,17 @@ voices = OpenAITTS.get_diverse_voices(count=11)
 
 ### Changing Adversarial Count
 
-Edit `/easy_oww/training/full_trainer.py`:
+Edit `/easy_oww/training/full_trainer.py` (lines 509, 532):
 
 ```python
+# Default is 6000
+target_count = 6000
+
 # Generate fewer adversarial samples (e.g., 3000)
-adversarial_texts = self._generate_simple_adversarial_texts(self.wake_word, n=3000)
+target_count = 3000
 
 # Or more (e.g., 10000)
-adversarial_texts = self._generate_simple_adversarial_texts(self.wake_word, n=10000)
+target_count = 10000
 ```
 
 ## API Reference
@@ -256,7 +252,7 @@ A: No, it's optional. The system falls back to Piper TTS automatically.
 A: Not currently. The system uses one or the other per training run.
 
 **Q: How much does it cost for multiple training runs?**
-A: Each training run costs ~$0.03, so 10 runs = ~$0.30, 100 runs = ~$3.00.
+A: Each training run costs ~$0.035, so 10 runs = ~$0.35, 100 runs = ~$3.50.
 
 **Q: Will costs increase in the future?**
 A: OpenAI may adjust pricing. Check current rates at https://openai.com/pricing
@@ -266,7 +262,15 @@ A: Currently only GPT-4o-mini-TTS is supported for cost efficiency. You can modi
 
 ## Changelog
 
-### v0.2.0 (Current)
+### v0.3.0 (Current)
+- Added parallel generation with 5 concurrent workers (~5x faster)
+- Increased adversarial negatives from 5000 to 6000
+- Added rate limit handling with exponential backoff
+- Added wake word/homophone validation for adversarial negatives
+- Removed pydub dependency (now uses PCM format directly)
+- Generation time reduced from ~60 minutes to ~8-10 minutes
+
+### v0.2.0
 - Added OpenAI GPT-4o-mini-TTS integration
 - Increased adversarial negatives from 3000 to 5000
 - Added 10 diverse voice support
