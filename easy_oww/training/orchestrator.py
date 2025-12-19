@@ -448,12 +448,12 @@ class TrainingOrchestrator:
                 output_dir=models_dir,
                 workspace_dir=self.workspace_path,
                 model_type="dnn",
-                layer_size=128,
-                steps=5000,
-                target_fp_per_hour=1.0,  # More aggressive - reduce false positives
-                augmentation_rounds=2,
+                layer_size=256,
+                steps=10000,
+                target_fp_per_hour=0.1,  # Optimized for minimal false positives
+                augmentation_rounds=5,
                 batch_size=128,
-                max_negative_weight=10,  # Balance: not too high (collapse) or too low (false positives)
+                max_negative_weight=50,  # Optimized for better precision
                 clip_length=clip_length_samples,  # None = auto-detect, or use configured length
                 sample_rate=config.sample_rate,
                 force=force
