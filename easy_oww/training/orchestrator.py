@@ -448,7 +448,7 @@ class TrainingOrchestrator:
                 output_dir=models_dir,
                 workspace_dir=self.workspace_path,
                 model_type="dnn",
-                layer_size=256,
+                layer_size=128,
                 steps=10000,
                 target_fp_per_hour=0.1,  # Optimized for minimal false positives
                 augmentation_rounds=5,
