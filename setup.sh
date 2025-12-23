@@ -40,22 +40,48 @@ print_header() {
 check_python() {
     print_header "Checking Python Version"
 
-    if ! command -v python3 &> /dev/null; then
-        print_error "Python 3 is not installed"
-        echo "Please install Python 3.7 or higher from https://www.python.org/downloads/"
-        exit 1
+    # Try to find a compatible Python version (3.7-3.11)
+    PYTHON_CMD=""
+
+    # First, check if default python3 is compatible
+    if command -v python3 &> /dev/null; then
+        PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+        PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info[0])')
+        PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info[1])')
+
+        if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -ge 7 ] && [ "$PYTHON_MINOR" -le 11 ]; then
+            PYTHON_CMD="python3"
+            print_success "Python $PYTHON_VERSION detected"
+            return
+        elif [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -gt 11 ]; then
+            print_warning "Python $PYTHON_VERSION detected (too new, requires 3.7-3.11)"
+            print_info "Searching for compatible Python version..."
+        else
+            print_error "Python $PYTHON_VERSION detected (too old, requires 3.7-3.11)"
+            echo "Please install Python 3.7-3.11 from https://www.python.org/downloads/"
+            exit 1
+        fi
+    else
+        print_info "python3 not found, searching for compatible version..."
     fi
 
-    PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-    PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info[0])')
-    PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info[1])')
+    # Try to find specific Python versions (prefer newer compatible versions)
+    for version in 3.11 3.10 3.9 3.8 3.7; do
+        if command -v python${version} &> /dev/null; then
+            PYTHON_CMD="python${version}"
+            PYTHON_VERSION=$(${PYTHON_CMD} -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
+            print_success "Found compatible Python $PYTHON_VERSION at $(which ${PYTHON_CMD})"
+            return
+        fi
+    done
 
-    if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 7 ]); then
-        print_error "Python 3.7 or higher is required (found Python $PYTHON_VERSION)"
-        exit 1
-    fi
-
-    print_success "Python $PYTHON_VERSION detected"
+    # No compatible Python found
+    print_error "No compatible Python version found (requires 3.7-3.11)"
+    echo ""
+    echo "Please install a compatible Python version:"
+    echo "  - On macOS with Homebrew: brew install python@3.11"
+    echo "  - Download from: https://www.python.org/downloads/"
+    exit 1
 }
 
 # Create virtual environment
@@ -75,8 +101,8 @@ create_venv() {
         fi
     fi
 
-    print_info "Creating virtual environment..."
-    python3 -m venv venv
+    print_info "Creating virtual environment with ${PYTHON_CMD}..."
+    ${PYTHON_CMD} -m venv venv
     print_success "Virtual environment created"
 }
 

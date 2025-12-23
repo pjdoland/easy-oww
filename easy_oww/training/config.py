@@ -164,7 +164,7 @@ class TrainingConfig:
         if self.sample_rate not in [8000, 16000, 22050, 44100]:
             issues.append("Sample rate should be 8000, 16000, 22050, or 44100")
 
-        if self.clip_duration_ms < 500 or self.clip_duration_ms > 3000:
+        if self.clip_duration_ms is not None and (self.clip_duration_ms < 500 or self.clip_duration_ms > 3000):
             issues.append("Clip duration should be between 500 and 3000 ms")
 
         # Check augmentation settings
