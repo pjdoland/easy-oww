@@ -922,7 +922,7 @@ class FullModelTrainer:
 
         # Initialize AudioFeatures to get input shape
         F = AudioFeatures(device='cpu')
-        input_shape = F.get_embedding_shape(total_length // 16000)
+        input_shape = F.get_embedding_shape(total_length / 16000)
 
         console.print(f"  Model type: {model_type}")
         console.print(f"  Input shape: {input_shape}")
@@ -934,7 +934,7 @@ class FullModelTrainer:
             input_shape=input_shape,
             model_type=model_type,
             layer_dim=layer_size,
-            seconds_per_example=1280 * input_shape[0] / 16000
+            seconds_per_example=total_length / 16000  # OpenWakeWord uses 16kHz sample rate
         )
 
         # Prepare data loaders
