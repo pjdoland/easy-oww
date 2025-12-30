@@ -22,11 +22,17 @@
 
 - **[Installation Guide](INSTALLATION.md)** - Detailed setup including external drive support
 - **[OpenAI TTS Guide](docs/OPENAI_TTS.md)** - GPT-4o-mini-TTS integration and cost optimization
+- **[macOS Training Guide](docs/MACOS_TRAINING.md)** - macOS-specific training information and troubleshooting
 - **[FAQ](FAQ.md)** - Frequently asked questions and troubleshooting
 - **[Audio Recording](easy_oww/audio/README.md)** - Recording system documentation
 - **[TTS Integration](easy_oww/tts/README.md)** - Text-to-speech setup and usage
 - **[Training Pipeline](easy_oww/training/README.md)** - Training workflow details
 - **[Model Testing](easy_oww/testing/README.md)** - Testing and validation guide
+
+## Platform Notes
+
+### macOS Training
+Training on macOS is fully supported but uses single-threaded processing for stability (3-5 hours vs 1-2 hours on Linux). This is due to OpenWakeWord's use of ThreadPool with memory-mapped files, which causes bus errors on macOS. Easy-OWW automatically applies compatibility patches. See **[macOS Training Guide](docs/MACOS_TRAINING.md)** for details.
 
 ## Quick Start
 

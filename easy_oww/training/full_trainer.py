@@ -71,6 +71,10 @@ console = Console()
 def _get_oww_imports():
     """Lazy import of OpenWakeWord training modules"""
     try:
+        # CRITICAL: Apply macOS compatibility patches BEFORE importing OpenWakeWord
+        from easy_oww.training.oww_patches import apply_patches
+        apply_patches()
+
         import torch
         from openwakeword.train import Model as OWWModel
         from openwakeword.data import augment_clips, mmap_batch_generator
@@ -804,6 +808,15 @@ class FullModelTrainer:
         console.print(f"  RIR files: {len(rir_paths)}")
         console.print(f"  Noise files: {len(noise_paths)}")
 
+        # CRITICAL: Reduce batch size on macOS to prevent bus errors
+        # Smaller batches = less memory pressure
+        import platform
+        if platform.system() == 'Darwin':  # macOS
+            original_batch_size = batch_size
+            batch_size = min(batch_size, 64)  # Cap at 64 for macOS
+            if batch_size != original_batch_size:
+                console.print(f"  [yellow]Note:[/yellow] Reduced batch size from {original_batch_size} to {batch_size} for macOS stability")
+
         # Split into train and test
         split_idx_pos = int(len(positive_clips) * 0.8)
         split_idx_neg = int(len(negative_clips) * 0.8)
@@ -845,12 +858,31 @@ class FullModelTrainer:
 
         # Extract features
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        n_cpus = os.cpu_count() // 2 if os.cpu_count() else 1
+
+        # IMPORTANT: On macOS, using multiple CPUs with memory-mapped files can cause bus errors
+        # due to memory alignment issues in ThreadPool. Set ncpu=1 to avoid this.
+        # Also reduce on systems with low memory to prevent crashes.
+        import platform
+        import psutil
+
+        # Get available memory
+        available_memory_gb = psutil.virtual_memory().available / (1024**3)
+        is_macos = platform.system() == 'Darwin'
+
+        # Use single CPU if on macOS or low memory to avoid bus errors
+        if is_macos or available_memory_gb < 4:
+            n_cpus = 1
+            if is_macos:
+                console.print(f"  [yellow]Note:[/yellow] Using single CPU on macOS to prevent memory errors")
+            else:
+                console.print(f"  [yellow]Note:[/yellow] Using single CPU due to low memory ({available_memory_gb:.1f}GB available)")
+        else:
+            n_cpus = min(os.cpu_count() // 2 if os.cpu_count() else 1, 2)  # Max 2 CPUs to be safe
 
         console.print(f"\n  Extracting features using {device.upper()}...")
         console.print(f"  [dim]This will process ~{len(pos_train) + len(neg_train) + len(pos_test) + len(neg_test)} total clips[/dim]")
         if device == "cpu":
-            console.print(f"  [yellow]⚠[/yellow] [dim]Using CPU - this may take 1-2 hours. Consider using GPU for faster processing.[/dim]")
+            console.print(f"  [yellow]⚠[/yellow] [dim]Using CPU - this may take 2-4 hours. Consider using GPU for faster processing.[/dim]")
         else:
             console.print(f"  [dim]Estimated time: 20-40 minutes[/dim]")
 
