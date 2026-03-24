@@ -518,13 +518,14 @@ def test_model(project_name, workspace_path=None, duration=60, verbose=False):
     test_choice = Prompt.ask("Select test type", choices=['1', '2', '3'], default='1')
 
     try:
+        # Ask for threshold once, used by both test types
+        threshold = 0.5
+        if Confirm.ask("\nCustomize detection threshold?", default=False):
+            threshold_str = Prompt.ask("Enter threshold (0.0-1.0)", default="0.5")
+            threshold = float(threshold_str)
+
         # Real-time test
         if test_choice in ['1', '3']:
-            threshold = 0.5
-            if Confirm.ask("\nCustomize detection threshold?", default=False):
-                threshold_str = Prompt.ask("Enter threshold (0.0-1.0)", default="0.5")
-                threshold = float(threshold_str)
-
             run_realtime_test(
                 model_path=model_path,
                 duration=duration,
@@ -533,6 +534,7 @@ def test_model(project_name, workspace_path=None, duration=60, verbose=False):
 
         # Clip evaluation
         if test_choice in ['2', '3']:
+
             clips_dir = project_path / 'clips'
 
             if not clips_dir.exists():
@@ -553,7 +555,7 @@ def test_model(project_name, workspace_path=None, duration=60, verbose=False):
                     negative_clips = negative_clips[:max_samples]
 
                     # Create detector
-                    detector = ModelDetector(model_path=model_path)
+                    detector = ModelDetector(model_path=model_path, detection_threshold=threshold)
 
                     # Evaluate
                     tracker = evaluate_model_on_dataset(
