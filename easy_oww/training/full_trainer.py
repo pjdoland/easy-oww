@@ -135,11 +135,11 @@ class FullModelTrainer:
         self,
         model_type: str = "dnn",
         layer_size: int = 128,
-        steps: int = 20000,  # More training steps = better convergence (was 15000)
-        target_fp_per_hour: float = 0.05,  # Lower = fewer false positives (was 0.1)
+        steps: int = 50000,  # More training steps = better convergence (was 20000)
+        target_fp_per_hour: float = 0.02,  # Lower = fewer false positives (was 0.05)
         augmentation_rounds: int = 5,  # More augmentation = more robust (was 3)
         batch_size: int = 128,
-        max_negative_weight: int = 100,  # Higher = penalize false positives more (was 50)
+        max_negative_weight: int = 200,  # Higher = penalize false positives more (was 100)
         clip_length: int = None,
         sample_rate: int = 16000,
         force: bool = False

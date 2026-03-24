@@ -24,7 +24,7 @@ class TrainingConfig:
     synthetic_samples: int = 980  # Generated with TTS
 
     # Training settings
-    max_steps: int = 20000
+    max_steps: int = 50000
     batch_size: int = 512
     learning_rate: float = 0.001
     early_stopping_patience: int = 5

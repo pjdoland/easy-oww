@@ -449,11 +449,11 @@ class TrainingOrchestrator:
                 workspace_dir=self.workspace_path,
                 model_type="dnn",
                 layer_size=128,
-                steps=20000,
-                target_fp_per_hour=0.05,  # Aggressive FP reduction
+                steps=50000,
+                target_fp_per_hour=0.02,  # Aggressive FP reduction
                 augmentation_rounds=5,
                 batch_size=128,
-                max_negative_weight=100,  # Hard penalty ceiling for false positives
+                max_negative_weight=200,  # Hard penalty ceiling for false positives
                 clip_length=clip_length_samples,  # None = auto-detect, or use configured length
                 sample_rate=config.sample_rate,
                 force=force

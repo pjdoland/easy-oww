@@ -188,7 +188,7 @@ def download_datasets(workspace_path=None, required_only=False, verbose=False):
             traceback.print_exc()
 
 
-def create_project(project_name, workspace_path=None, wake_word=None, samples=1000, steps=20000, duration=3.0, verbose=False):
+def create_project(project_name, workspace_path=None, wake_word=None, samples=1000, steps=50000, duration=3.0, verbose=False):
     """
     Create new wake word project
 
