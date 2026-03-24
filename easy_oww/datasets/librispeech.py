@@ -144,7 +144,7 @@ class LibriSpeechDataset:
         # Download train split (clean speech)
         self.download_subset(config='clean', split='train', max_samples=samples_per_split)
 
-        total_files = len(list(self.speech_dir.glob('**/*.wav')))
+        total_files = sum(1 for _ in self.speech_dir.glob('**/*.wav'))
         console.print(f"\n[green]✓[/green] LibriSpeech ready: {total_files} speech samples available")
 
         return self.speech_dir

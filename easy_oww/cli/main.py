@@ -51,7 +51,7 @@ def download(ctx, required_only, workspace):
 @click.option('--workspace', '-w', default=None, help='Custom workspace path')
 @click.option('--wake-word', help='Wake word/phrase')
 @click.option('--samples', type=int, default=1000, help='Number of training samples')
-@click.option('--steps', type=int, default=10000, help='Training steps')
+@click.option('--steps', type=int, default=20000, help='Training steps')
 @click.option('--duration', type=float, default=3.0, help='Recording duration in seconds (default: 3.0)')
 @click.pass_context
 def create(ctx, project_name, workspace, wake_word, samples, steps, duration):

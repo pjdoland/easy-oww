@@ -135,11 +135,11 @@ class FullModelTrainer:
         self,
         model_type: str = "dnn",
         layer_size: int = 128,
-        steps: int = 10000,  # More training steps = better convergence (was 5000)
-        target_fp_per_hour: float = 0.1,  # Lower = fewer false positives (was 0.5)
+        steps: int = 20000,  # More training steps = better convergence (was 15000)
+        target_fp_per_hour: float = 0.05,  # Lower = fewer false positives (was 0.1)
         augmentation_rounds: int = 5,  # More augmentation = more robust (was 3)
         batch_size: int = 128,
-        max_negative_weight: int = 50,  # Higher = penalize false positives more (was 25)
+        max_negative_weight: int = 100,  # Higher = penalize false positives more (was 50)
         clip_length: int = None,
         sample_rate: int = 16000,
         force: bool = False
@@ -750,7 +750,7 @@ class FullModelTrainer:
             try:
                 sr, data = wavfile.read(clip)
                 durations.append(len(data))
-            except:
+            except Exception:
                 pass
 
         if not durations:

@@ -557,9 +557,6 @@ class ClipGenerator:
         Delete all synthetic clips but preserve real recordings.
         Used when force mode is enabled to regenerate synthetic samples.
         """
-        from rich.console import Console
-        console = Console()
-
         deleted_count = 0
 
         # Delete synthetic positive clips (prefixed with 'synth_')

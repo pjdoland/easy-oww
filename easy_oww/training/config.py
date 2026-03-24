@@ -24,7 +24,7 @@ class TrainingConfig:
     synthetic_samples: int = 980  # Generated with TTS
 
     # Training settings
-    max_steps: int = 10000
+    max_steps: int = 20000
     batch_size: int = 512
     learning_rate: float = 0.001
     early_stopping_patience: int = 5
@@ -58,6 +58,7 @@ class TrainingConfig:
     clips_dir: Optional[str] = None
     features_dir: Optional[str] = None
     models_dir: Optional[str] = None
+    model_path: Optional[str] = None
 
     def __post_init__(self):
         """Post initialization processing"""

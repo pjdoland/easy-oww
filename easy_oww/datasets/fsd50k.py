@@ -221,12 +221,12 @@ class FSD50kDownloader:
         # Check new structure
         for audio_dir in [self.dest_dir / 'dev', self.dest_dir / 'eval']:
             if audio_dir.exists():
-                count += len(list(audio_dir.glob('*.wav')))
+                count += sum(1 for _ in audio_dir.glob('*.wav'))
 
         # Also check old structure for backwards compatibility
         if count == 0:
             for audio_dir in [self.dest_dir / 'FSD50K.dev_audio', self.dest_dir / 'FSD50K.eval_audio']:
                 if audio_dir.exists():
-                    count += len(list(audio_dir.glob('*.wav')))
+                    count += sum(1 for _ in audio_dir.glob('*.wav'))
 
         return count

@@ -106,4 +106,4 @@ class RIRDownloader:
         """Count number of cached RIR files"""
         if not self.dest_dir.exists():
             return 0
-        return len(list(self.dest_dir.glob('*.wav')))
+        return sum(1 for _ in self.dest_dir.glob('*.wav'))

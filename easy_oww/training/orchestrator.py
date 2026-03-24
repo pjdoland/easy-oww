@@ -156,8 +156,8 @@ class TrainingOrchestrator:
         if not positive_dir.exists() or not negative_dir.exists():
             return False
 
-        positive_count = len(list(positive_dir.glob('*.wav')))
-        negative_count = len(list(negative_dir.glob('*.wav')))
+        positive_count = sum(1 for _ in positive_dir.glob('*.wav'))
+        negative_count = sum(1 for _ in negative_dir.glob('*.wav'))
 
         # Require at least some clips to be present
         return positive_count > 0 and negative_count > 0
@@ -173,7 +173,7 @@ class TrainingOrchestrator:
         if not augmented_dir.exists():
             return False
 
-        augmented_count = len(list(augmented_dir.glob('*.wav')))
+        augmented_count = sum(1 for _ in augmented_dir.glob('*.wav'))
         return augmented_count > 0
 
     def _generate_clips(self, config: TrainingConfig, force: bool = False):
@@ -190,8 +190,8 @@ class TrainingOrchestrator:
 
             # Show counts
             clips_dir = Path(config.clips_dir)
-            positive_count = len(list((clips_dir / 'positive').glob('*.wav')))
-            negative_count = len(list((clips_dir / 'negative').glob('*.wav')))
+            positive_count = sum(1 for _ in (clips_dir / 'positive').glob('*.wav'))
+            negative_count = sum(1 for _ in (clips_dir / 'negative').glob('*.wav'))
             console.print(f"  Positive clips: {positive_count}")
             console.print(f"  Negative clips: {negative_count}")
             return
@@ -323,7 +323,7 @@ class TrainingOrchestrator:
         if not force and self._augmented_clips_exist(config):
             console.print("[green]✓[/green] Augmented clips already generated, skipping...")
             clips_dir = Path(config.clips_dir)
-            augmented_count = len(list((clips_dir / 'positive_augmented').glob('*.wav')))
+            augmented_count = sum(1 for _ in (clips_dir / 'positive_augmented').glob('*.wav'))
             console.print(f"  Augmented clips: {augmented_count}")
             return
 
@@ -341,7 +341,7 @@ class TrainingOrchestrator:
         noise_available = noise_dir.exists()
 
         if rir_available:
-            rir_count = len(list(rir_dir.rglob('*.wav')))
+            rir_count = sum(1 for _ in rir_dir.rglob('*.wav'))
             console.print(f"  [green]✓[/green] RIR dataset: {rir_count} files")
         else:
             console.print(f"  [yellow]✗[/yellow] RIR dataset: Not found at {rir_dir}")
@@ -353,7 +353,7 @@ class TrainingOrchestrator:
             for subdir in ['dev', 'eval', 'FSD50K.dev_audio', 'FSD50K.eval_audio']:
                 subdir_path = noise_dir / subdir
                 if subdir_path.exists():
-                    noise_count += len(list(subdir_path.glob('*.wav')))
+                    noise_count += sum(1 for _ in subdir_path.glob('*.wav'))
 
             if noise_count > 0:
                 console.print(f"  [green]✓[/green] Noise dataset (FSD50K): {noise_count} files")
@@ -418,8 +418,8 @@ class TrainingOrchestrator:
         positive_aug_dir = clips_dir / 'positive_augmented'
         negative_dir = clips_dir / 'negative'
 
-        total_positive = len(list(positive_dir.glob('*.wav'))) + len(list(positive_aug_dir.glob('*.wav')))
-        total_negative = len(list(negative_dir.glob('*.wav')))
+        total_positive = sum(1 for _ in positive_dir.glob('*.wav')) + sum(1 for _ in positive_aug_dir.glob('*.wav'))
+        total_negative = sum(1 for _ in negative_dir.glob('*.wav'))
 
         console.print(f"\nTraining data:")
         console.print(f"  Positive samples: {total_positive}")
@@ -449,11 +449,11 @@ class TrainingOrchestrator:
                 workspace_dir=self.workspace_path,
                 model_type="dnn",
                 layer_size=128,
-                steps=10000,
-                target_fp_per_hour=0.1,  # Optimized for minimal false positives
+                steps=20000,
+                target_fp_per_hour=0.05,  # Aggressive FP reduction
                 augmentation_rounds=5,
                 batch_size=128,
-                max_negative_weight=50,  # Optimized for better precision
+                max_negative_weight=100,  # Hard penalty ceiling for false positives
                 clip_length=clip_length_samples,  # None = auto-detect, or use configured length
                 sample_rate=config.sample_rate,
                 force=force
@@ -476,7 +476,7 @@ class TrainingOrchestrator:
         Args:
             config: Training configuration
         """
-        model_path = getattr(config, 'model_path', 'Not trained')
+        model_path = config.model_path or 'Not trained'
 
         console.print(Panel.fit(
             f"[bold green]Training Complete![/bold green]\n\n"
