@@ -510,7 +510,7 @@ class FullModelTrainer:
         adversarial_dir.mkdir(exist_ok=True)
 
         # Check for existing adversarial samples and resume if needed
-        target_count = 6000
+        target_count = 9000
         existing = list(adversarial_dir.glob('adversarial_*.wav'))
         existing_count = len(existing)
 
@@ -648,7 +648,7 @@ class FullModelTrainer:
         adversarial_dir.mkdir(exist_ok=True)
 
         # Check for existing adversarial samples and resume if needed
-        target_count = 6000
+        target_count = 9000
         existing = list(adversarial_dir.glob('adversarial_*.wav'))
         existing_count = len(existing)
 
