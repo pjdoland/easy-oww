@@ -65,6 +65,17 @@ class DiPCoDataset:
         console.print("  ~5.5 hours of far-field conversational speech for FP rate testing")
 
         try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
+
+            def _write_sample(index, audio_array, sample_rate):
+                """Resample if needed and write a single audio sample to disk."""
+                if sample_rate != 16000:
+                    import librosa
+                    audio_array = librosa.resample(audio_array, orig_sr=sample_rate, target_sr=16000)
+                output_path = self.dipco_dir / f"dipco_{index:05d}.wav"
+                sf.write(output_path, audio_array, 16000, subtype='PCM_16')
+                return index
+
             with console.status("[bold green]Loading DiPCo dataset..."):
                 dataset = load_dataset(
                     self.HF_DATASET,
@@ -74,6 +85,7 @@ class DiPCoDataset:
                 )
 
             count = 0
+            max_workers = 4
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
@@ -82,26 +94,55 @@ class DiPCoDataset:
             ) as progress:
                 task = progress.add_task("Downloading DiPCo audio", total=None)
 
-                for i, sample in enumerate(dataset):
-                    try:
-                        audio = sample['audio']
-                        array = np.array(audio['array'], dtype=np.float32)
-                        sample_rate = audio['sampling_rate']
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    pending = set()
+                    next_index = 0
+                    max_pending = max_workers * 2  # Cap queued work to bound memory
 
-                        if sample_rate != 16000:
-                            import scipy.signal as signal
-                            num_samples = int(len(array) * 16000 / sample_rate)
-                            array = signal.resample(array, num_samples)
+                    def _drain_completed():
+                        nonlocal count
+                        done = {f for f in pending if f.done()}
+                        for f in done:
+                            pending.discard(f)
+                            try:
+                                f.result()
+                                count += 1
+                            except Exception as e:
+                                logger.warning(f"Failed to process sample: {e}")
 
-                        output_path = self.dipco_dir / f"dipco_{count:05d}.wav"
-                        sf.write(output_path, array, 16000, subtype='PCM_16')
+                    for i, sample in enumerate(dataset):
+                        while len(pending) >= max_pending:
+                            done_set, pending_set = wait(pending, return_when=FIRST_COMPLETED)
+                            pending.clear()
+                            pending.update(pending_set)
+                            for f in done_set:
+                                try:
+                                    f.result()
+                                    count += 1
+                                except Exception as e:
+                                    logger.warning(f"Failed to process sample: {e}")
 
-                        count += 1
-                        progress.update(task, description=f"Downloading DiPCo audio ({count} files)")
+                        try:
+                            audio = sample['audio']
+                            array = np.array(audio['array'], dtype=np.float32)
+                            sample_rate = audio['sampling_rate']
+                            future = executor.submit(_write_sample, next_index, array, sample_rate)
+                            pending.add(future)
+                            next_index += 1
+                        except Exception as e:
+                            logger.warning(f"Failed to read sample {i}: {e}")
+                            continue
 
-                    except Exception as e:
-                        logger.warning(f"Failed to process sample {i}: {e}")
-                        continue
+                        _drain_completed()
+                        progress.update(task, description=f"Downloading DiPCo audio ({count} saved)")
+
+                    for f in as_completed(pending):
+                        try:
+                            f.result()
+                            count += 1
+                        except Exception as e:
+                            logger.warning(f"Failed to process sample: {e}")
+                    progress.update(task, description=f"Downloading DiPCo audio ({count} saved)")
 
             total_duration = self.get_total_duration_hours()
             console.print(f"\n[green]✓[/green] DiPCo ready: {count} files, {total_duration:.1f} hours of audio")
