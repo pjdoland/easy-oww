@@ -471,7 +471,7 @@ def test_model(project_name, workspace_path=None, duration=60, verbose=False):
         duration: Test duration in seconds
         verbose: Enable verbose output
     """
-    from easy_oww.testing import run_realtime_test, ModelDetector, evaluate_model_on_dataset
+    from easy_oww.testing import run_realtime_test, ModelDetector, evaluate_model_on_dataset, evaluate_false_positive_rate
     from rich.prompt import Confirm, Prompt
 
     paths = PathManager(workspace_path)
@@ -514,8 +514,9 @@ def test_model(project_name, workspace_path=None, duration=60, verbose=False):
     console.print("  1. Real-time microphone test")
     console.print("  2. Evaluate on test clips")
     console.print("  3. Both")
+    console.print("  4. DiPCo false positive rate test")
 
-    test_choice = Prompt.ask("Select test type", choices=['1', '2', '3'], default='1')
+    test_choice = Prompt.ask("Select test type", choices=['1', '2', '3', '4'], default='1')
 
     try:
         # Ask for threshold once, used by both test types
@@ -570,6 +571,41 @@ def test_model(project_name, workspace_path=None, duration=60, verbose=False):
                     # Save results
                     results_path = project_path / 'test_results.json'
                     tracker.save_results(results_path)
+
+        # DiPCo false positive rate test
+        if test_choice == '4':
+            from easy_oww.datasets.dipco import DiPCoDataset
+
+            datasets_dir = paths.datasets
+            hf_cache_dir = datasets_dir.parent / '.cache' / 'huggingface'
+
+            dipco = DiPCoDataset(str(datasets_dir), cache_dir=str(hf_cache_dir))
+
+            if not dipco.is_cached():
+                if Confirm.ask("\nDiPCo dataset not found. Download it now (~1.5 GB)?", default=True):
+                    dipco.download_all()
+                else:
+                    console.print("[yellow]Skipping DiPCo test[/yellow]")
+                    return
+
+            audio_files = dipco.get_audio_files()
+            if not audio_files:
+                console.print("[yellow]No DiPCo audio files found[/yellow]")
+            else:
+                total_hours = dipco.get_total_duration_hours()
+                console.print(f"\n[bold cyan]Running DiPCo false positive rate test...[/bold cyan]")
+                console.print(f"  {len(audio_files)} files, {total_hours:.1f} hours of audio, threshold={threshold}")
+
+                detector = ModelDetector(model_path=model_path, detection_threshold=threshold)
+
+                fp_result = evaluate_false_positive_rate(
+                    detector=detector,
+                    audio_files=audio_files,
+                    threshold=threshold,
+                )
+
+                fp_result.display()
+                fp_result.save(project_path / 'dipco_fp_results.json')
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Test interrupted[/yellow]")

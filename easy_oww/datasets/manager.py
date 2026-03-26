@@ -11,6 +11,7 @@ from easy_oww.datasets.acav100m_features import ACAV100MDownloader
 from easy_oww.datasets.rir import RIRDownloader
 from easy_oww.datasets.fsd50k import FSD50kDownloader
 from easy_oww.datasets.librispeech import LibriSpeechDataset
+from easy_oww.datasets.dipco import DiPCoDataset
 from easy_oww.datasets.cache import CacheManager
 
 
@@ -42,6 +43,7 @@ class DatasetManager:
         self.rir = RIRDownloader(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
         self.fsd50k = FSD50kDownloader(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
         self.librispeech = LibriSpeechDataset(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
+        self.dipco = DiPCoDataset(str(self.datasets_dir), cache_dir=str(hf_cache_dir))
 
     def get_dataset_info(self) -> List[Dict]:
         """
@@ -90,6 +92,14 @@ class DatasetManager:
                 'priority': 'Recommended',
                 'cached': self.librispeech.is_cached(),
                 'description': 'Speech negatives (5000+ samples)'
+            },
+            {
+                'name': 'DiPCo (Dinner Party Corpus)',
+                'key': 'dipco',
+                'size_gb': DiPCoDataset.SIZE_GB,
+                'priority': 'Optional',
+                'cached': self.dipco.is_cached(),
+                'description': 'Far-field speech for FP rate testing (~5.5 hrs)'
             },
         ]
 
@@ -182,6 +192,17 @@ class DatasetManager:
         else:
             console.print("[green]✓ LibriSpeech already cached[/green]\n")
 
+        # DiPCo (false positive rate testing)
+        if not self.dipco.is_cached():
+            try:
+                self.dipco.download_all()
+                self.cache.add_entry('dipco', str(self.dipco.dipco_dir))
+                console.print("[green]✓ DiPCo downloaded[/green]\n")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to download DiPCo: {e}[/red]\n")
+        else:
+            console.print("[green]✓ DiPCo already cached[/green]\n")
+
     def download_all(self, required_only: bool = False):
         """
         Download all datasets
@@ -227,4 +248,5 @@ class DatasetManager:
             'rir': self.datasets_dir / 'mit_rir',
             'fsd50k': self.datasets_dir / 'fsd50k',
             'librispeech': self.datasets_dir / 'librispeech',
+            'dipco': self.datasets_dir / 'dipco',
         }

@@ -4,6 +4,7 @@ from easy_oww.datasets.cache import CacheManager
 from easy_oww.datasets.acav100m_features import ACAV100MDownloader
 from easy_oww.datasets.rir import RIRDownloader
 from easy_oww.datasets.fsd50k import FSD50kDownloader
+from easy_oww.datasets.dipco import DiPCoDataset
 from easy_oww.datasets.manager import DatasetManager
 
 __all__ = [
@@ -11,5 +12,6 @@ __all__ = [
     'ACAV100MDownloader',
     'RIRDownloader',
     'FSD50kDownloader',
+    'DiPCoDataset',
     'DatasetManager'
 ]
