@@ -15,6 +15,7 @@ class DiPCoDataset:
     """Downloads and manages DiPCo dataset for false positive rate evaluation"""
 
     HF_DATASET = "benjamin-paine/dinner-party-corpus"
+    HF_CONFIG = "mixed-channel"
     SIZE_GB = 1.5  # Approximate for far-field audio
 
     def __init__(self, datasets_dir: str, cache_dir: str):
@@ -32,8 +33,6 @@ class DiPCoDataset:
 
     def is_cached(self) -> bool:
         """Check if DiPCo is already downloaded"""
-        if not self.dipco_dir.exists():
-            return False
         count = 0
         for _ in self.dipco_dir.glob('**/*.wav'):
             count += 1
@@ -56,9 +55,10 @@ class DiPCoDataset:
             from datasets import load_dataset
             import soundfile as sf
             import numpy as np
+            import librosa
         except ImportError as e:
             logger.error(f"Missing dependencies: {e}")
-            console.print("[red]Error:[/red] Install required packages: pip install datasets soundfile")
+            console.print("[red]Error:[/red] Install required packages: pip install datasets soundfile librosa")
             return self.dipco_dir
 
         console.print("\n[bold cyan]Downloading Dinner Party Corpus (DiPCo)...[/bold cyan]")
@@ -68,81 +68,62 @@ class DiPCoDataset:
             from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 
             def _write_sample(index, audio_array, sample_rate):
-                """Resample if needed and write a single audio sample to disk."""
                 if sample_rate != 16000:
-                    import librosa
                     audio_array = librosa.resample(audio_array, orig_sr=sample_rate, target_sr=16000)
                 output_path = self.dipco_dir / f"dipco_{index:05d}.wav"
                 sf.write(output_path, audio_array, 16000, subtype='PCM_16')
-                return index
 
-            with console.status("[bold green]Loading DiPCo dataset..."):
+            with console.status("[bold green]Downloading DiPCo dataset..."):
                 dataset = load_dataset(
                     self.HF_DATASET,
-                    "mixed-channel",
+                    self.HF_CONFIG,
                     split="test",
-                    streaming=True
                 )
 
+            console.print(f"  Downloaded {len(dataset)} samples, writing WAV files...")
+
             count = 0
-            max_workers = 4
+            next_index = 0
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
+                TextColumn("{task.completed}/{task.total}"),
                 console=console
             ) as progress:
-                task = progress.add_task("Downloading DiPCo audio", total=None)
+                task = progress.add_task("Writing DiPCo audio", total=len(dataset))
 
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    pending = set()
-                    next_index = 0
-                    max_pending = max_workers * 2  # Cap queued work to bound memory
-
-                    def _drain_completed():
-                        nonlocal count
-                        done = {f for f in pending if f.done()}
-                        for f in done:
-                            pending.discard(f)
-                            try:
-                                f.result()
-                                count += 1
-                            except Exception as e:
-                                logger.warning(f"Failed to process sample: {e}")
-
-                    for i, sample in enumerate(dataset):
-                        while len(pending) >= max_pending:
-                            done_set, pending_set = wait(pending, return_when=FIRST_COMPLETED)
-                            pending.clear()
-                            pending.update(pending_set)
-                            for f in done_set:
-                                try:
-                                    f.result()
-                                    count += 1
-                                except Exception as e:
-                                    logger.warning(f"Failed to process sample: {e}")
-
-                        try:
-                            audio = sample['audio']
-                            array = np.array(audio['array'], dtype=np.float32)
-                            sample_rate = audio['sampling_rate']
-                            future = executor.submit(_write_sample, next_index, array, sample_rate)
-                            pending.add(future)
-                            next_index += 1
-                        except Exception as e:
-                            logger.warning(f"Failed to read sample {i}: {e}")
-                            continue
-
-                        _drain_completed()
-                        progress.update(task, description=f"Downloading DiPCo audio ({count} saved)")
-
-                    for f in as_completed(pending):
+                def _drain(futures, pending):
+                    nonlocal count
+                    for f in futures:
                         try:
                             f.result()
                             count += 1
                         except Exception as e:
-                            logger.warning(f"Failed to process sample: {e}")
-                    progress.update(task, description=f"Downloading DiPCo audio ({count} saved)")
+                            logger.warning(f"Failed to write sample {pending[f]}: {e}")
+                        progress.update(task, advance=1)
+                        del pending[f]
+
+                max_workers = 4
+                max_pending = max_workers * 2
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    pending = {}
+                    for sample in dataset:
+                        while len(pending) >= max_pending:
+                            done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                            _drain(done, pending)
+
+                        try:
+                            audio = sample['audio']
+                            array = np.asarray(audio['array'], dtype=np.float32)
+                            sample_rate = audio['sampling_rate']
+                            pending[executor.submit(_write_sample, next_index, array, sample_rate)] = next_index
+                            next_index += 1
+                        except Exception as e:
+                            logger.warning(f"Failed to read sample: {e}")
+                            progress.update(task, advance=1)
+
+                    _drain(as_completed(pending), pending)
 
             total_duration = self.get_total_duration_hours()
             console.print(f"\n[green]✓[/green] DiPCo ready: {count} files, {total_duration:.1f} hours of audio")
@@ -165,7 +146,7 @@ class DiPCoDataset:
             return 0.0
 
         total_seconds = 0.0
-        for f in self.get_audio_files():
+        for f in self.dipco_dir.glob('**/*.wav'):
             try:
                 info = sf.info(str(f))
                 total_seconds += info.duration
